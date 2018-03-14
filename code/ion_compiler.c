@@ -81,13 +81,13 @@ __BufGrow(void *buf, size_t new_len, size_t elem_size) {
 
 internal void
 BufTest() {
-    int *buf = NULL;
+    s32 *buf = NULL;
     enum { N = 1024 };
-    for (int i = 0; i < N; i++) {
+    for (u32 i = 0; i < N; i++) {
         BufPush(buf, i);
     }
     assert(BufLen(buf) == N);
-    for (int i = 0; i < BufLen(buf); i++) {
+    for (u32 i = 0; i < BufLen(buf); i++) {
         assert(buf[i] == i);
     }
     BufFree(buf);
@@ -102,7 +102,7 @@ typedef enum TokenKind {
 typedef struct Token {
     TokenKind kind;
     union {
-        uint64_t val;
+        u64 val;
         struct {
             char *start;
             char *end;
@@ -127,7 +127,7 @@ NextToken() {
         case '7':
         case '8':
         case '9': {
-            uint64_t val = 0;
+            u64 val = 0;
             while(isdigit(*stream)) {
                 val *= 10; // Shifts everything over every time we see a new digit.
                 val += *stream++ - '0';
