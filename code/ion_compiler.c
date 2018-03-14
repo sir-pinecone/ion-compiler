@@ -17,6 +17,27 @@
 
 #define MAX(a, b) ((a) >= (b) ? (a) : (b))
 
+void *
+xrealloc(void *ptr, size_t num_bytes) {
+    ptr = realloc(ptr, num_bytes);
+    if (!ptr) {
+        perror("xrealloc failed");
+        assert(0);
+        exit(1);
+    }
+    return ptr;
+}
+
+void *
+xmalloc(size_t num_bytes) {
+    void *ptr = malloc(num_bytes);
+    if (!ptr) {
+        perror("xmalloc failed");
+        exit(1);
+    }
+    return ptr;
+}
+
 typedef struct BufHdr {
     size_t len;
     size_t cap;
@@ -49,9 +70,9 @@ __BufGrow(void *buf, size_t new_len, size_t elem_size) {
     size_t new_size = offsetof(BufHdr, buf) + new_cap * elem_size;
     BufHdr *new_hdr;
     if (buf) {
-        new_hdr = realloc(buf__hdr(buf), new_size);
+        new_hdr = xrealloc(buf__hdr(buf), new_size);
     } else {
-        new_hdr = malloc(new_size);
+        new_hdr = xmalloc(new_size);
         new_hdr->len = 0;
     }
     new_hdr->cap = new_cap;
