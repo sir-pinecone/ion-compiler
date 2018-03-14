@@ -1,0 +1,366 @@
+#!/bin/bash
+
+if [[ `uname` == 'Darwin' ]]; then
+  echo "Building for MacOS"
+  cd ../build/
+  rm CMakeFiles/Glitter.dir/code/*.o
+  make
+  cd ../code
+  exit
+fi
+
+echo "Building for Windows"
+
+# This builds the game engine. Call it from a Windows shell that supports bash commands. Support for
+# Linux and other platforms will come in the future.
+#
+# -------------------------------------------------------------------------------------------------
+# CMD LINE ARGS
+# **Each option has a corresponding default value in the OPTIONS DEFAULTS section.**
+#
+# -[p]latform = Set the target platform, e.g. desktop, web, raspi, etc. See full list below in the
+#               PLATFORM OPTIONS section.
+# -[a]rch     = System architecture to compile for, i.e. 32 or 64. The MSVC toolset must be set to
+#               the same architecture, otherwise the build script will abort. See vcvarsall.bat
+#               command line options.
+# -[d]ebug    = Turn debug mode on/off. Turn on with 1 or off with 0 in order to do a release
+#               build.
+# -[r]elease  = Another way to set the debug value. If this is 1 then debug mode is turned off and
+#               vice versa. If you supply both --debug and --release, the last option provided will
+#               take precedence.
+# -dev        = Turn dev mode on/off. Turn on with 1 and off with 0. Note that this will be
+#               auto-disabled when compiling for a release.
+# -data       = Force copy the data directory to the build directory. This overwrites pre-existing
+#               data.
+# -[o]ptimize = Turn optimize mode on/off. Turn on with 1 or off with 0.
+# -[g]raphics = Set the OpenGL version to compile with. See options doc below for details.
+# -[c]onsole  = Show or hide the console. Turn on with 1 and off with 0.
+# -[v]erbose  = Show or hide debug compiler logs. Turn off with 0, turn on minimal logs with 1 and
+#               turn on detailed logs with 2.
+# --------------------------------------------------------------------------------------------------
+
+# ENV that is exposed to your C/C++ code
+#
+# MC_PLATFORM_WIN32 - will be defined when compiling on Windows.
+# MC_INTERNAL - will be set to 1 when dev mode is on and 0 when off.
+# MC_SLOW - will be set to 1 when debug mode is on and 0 when off.
+
+#---------------------------------------------------------------------------------------------------
+# OPTIONS DEFAULTS
+#---------------------------------------------------------------------------------------------------
+
+default_platform="desktop"
+default_arch=64
+default_dev_mode=1
+default_debug_mode=1
+default_optimize_mode=0
+graphics="GRAPHICS_API_OPENGL_33"
+default_console=1
+default_verbose=0
+default_force_data_copy=1
+
+#---------------------------------------------------------------------------------------------------
+
+cwd=$PWD
+source_helpers="/w/game-libs/project-templates/_helpers"
+source "$source_helpers/printing.sh"
+
+if [[ ! $(uname) =~ "MINGW" ]]; then
+  error "Error: this build script is not supported on your platform!\n"
+  exit 1
+else
+  platform_os="WINDOWS"
+fi
+
+# If you're using msys/mingw shell for compiling then it's possible for its gcc link.exe to take
+# precedence over the VC link.exe simply due to the path order. We get around this by prefixing all
+# VC tools with the active VC arch bin path
+msvc_bin="$VCINSTALLDIR"
+msvc_bin+="bin"
+msvc_set_to_x64=0
+if [[ $(env | grep "LIB" | grep "amd64") != "" ]]; then
+  msvc_set_to_x64=1
+  msvc_bin+="/amd64"
+fi
+# Fix up the path
+msvc_bin="/${msvc_bin/:/}" # remove :
+msvc_bin="${msvc_bin//\\//}" # remove windows slashes
+msvc_bin="${msvc_bin// /\\ }" # add a backslash before spaces
+
+#---------------------------------------------------------------------------------------------------
+# COLLECT COMMAND LINE ARGS
+#---------------------------------------------------------------------------------------------------
+
+while [[ "$#" > 1 ]]; do case $1 in
+    -platform) platform="$2";;
+    -p)        platform="$2";;
+    -arch)     arch="$2";;
+    -a)        arch="$2";;
+    -debug)    debug_mode="$2";;
+    -d)        debug_mode="$2";;
+    -release)  debug_mode=$( if [[ "$2" -eq 0 ]]; then echo 1; else echo 0; fi);;
+    -r)        debug_mode=$( if [[ "$2" -eq 0 ]]; then echo 1; else echo 0; fi);;
+    -dev)      dev_mode="$2";;
+    -data)     force_data_copy="$2";;
+    -optimize) optimize_mode="$2";;
+    -o)        optimize_mode="$2";;
+    -console)  console="$2";;
+    -c)        console="$2";;
+    -verbose)  verbose="$2";;
+    -v)        verbose="$2";;
+    *) break;;
+  esac; shift; shift
+done
+
+# --------------------------------------------------------------------------------------------------
+# PLATFORM OPTIONS:
+#  * desktop
+#  * raspi (not supported yet)
+#  * web (not supported yet)
+# --------------------------------------------------------------------------------------------------
+if [[ $platform == "" ]]; then
+  platform=$default_platform
+fi
+
+if [[ $platform == "desktop" ]]; then
+  platform="PLATFORM_DESKTOP"
+else
+  error "Error: unsupported platform '$platform'\n"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# ARCHITECTURE OPTIONS:
+#  * 64
+#  * 32
+# --------------------------------------------------------------------------------------------------
+if [[ $arch == "" ]]; then
+  arch=$default_arch
+fi
+
+if [[ $arch -eq 32 ]]; then
+  arch="x86"
+elif [[ $arch -eq 64 ]]; then
+  arch="x64"
+else
+  error "Error: unsupported architecture '$arch'\N"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# DEBUG MODE OPTIONS:
+#  * 1 (on - debug compile)
+#  * 0 (off - release compile)
+# --------------------------------------------------------------------------------------------------
+if [[ $debug_mode == "" ]]; then
+  debug_mode=$default_debug_mode
+elif [[ ! $debug_mode -eq 0 && ! $debug_mode -eq 1 ]]; then
+  error "Error: unsupported debug option '$debug_mode'\N"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# DEV MODE OPTIONS:
+#  * 1 (on - include dev mode features)
+#  * 0 (off)
+# --------------------------------------------------------------------------------------------------
+if [[ $dev_mode == "" ]]; then
+  if [[ $debug_mode -eq 0 ]]; then
+    dev_mode=0
+  else
+    dev_mode=$default_dev_mode
+  fi
+elif [[ ! $dev_mode -eq 0 && ! $dev_mode -eq 1 ]]; then
+  error "Error: unsupported dev mode option '$dev_mode'\n"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# FORCE DATA COPY OPTIONS:
+#  * 1 (yes)
+#  * 0 (no)
+# --------------------------------------------------------------------------------------------------
+if [[ $force_data_copy == "" ]]; then
+  force_data_copy=$default_force_data_copy
+elif [[ ! $force_data_copy -eq 0 && ! $force_data_copy -eq 1 ]]; then
+  error "Error: unsupported force data copy option '$force_data_copy'\n"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# OPTIMIZE MODE OPTIONS:
+#  * 1 (on)
+#  * 0 (off)
+# --------------------------------------------------------------------------------------------------
+if [[ $optimize_mode == "" ]]; then
+  optimize_mode=$default_optimize_mode
+elif [[ ! $optimize_mode -eq 0 && ! $optimize_mode -eq 1 ]]; then
+  error "Error: unsupported optimize option '$optimize_mode'\n"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# CONSOLE OPTIONS:
+#  * 1 (on)
+#  * 0 (off)
+# --------------------------------------------------------------------------------------------------
+if [[ $console == "" ]]; then
+  console=$default_console
+elif [[ ! $console -eq 0 && ! $console -eq 1 ]]; then
+  error "Error: unsupported console option '$console'\n"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# VERBOSE OPTIONS:
+#  * 1 (on)
+#  * 0 (off)
+# --------------------------------------------------------------------------------------------------
+if [[ $verbose == "" ]]; then
+  verbose=$default_verbose
+elif [[ ! $verbose -eq 0 && ! $verbose -eq 1 && ! $verbose -eq 2 ]]; then
+  error "Error: unsupported verbose option '$verbose'\n"
+  exit 1
+fi
+
+# --------------------------------------------------------------------------------------------------
+# LOG OPTIONS
+# --------------------------------------------------------------------------------------------------
+if [[ ! $verbose -eq 0 ]]; then
+  log " Platform OS = " $platform_os
+  log "    Platform = " $platform
+  log "        Arch = " $arch
+  log "  Debug Mode = " $debug_mode
+  log "    Dev Mode = " $dev_mode
+  log "    Optimize = " $optimize_mode
+  log "Show Console = " $console
+  log "     Verbose = " $verbose
+  log "  [f] OpenGL = " $graphics
+fi
+
+# --------------------------------------------------------------------------------------------------
+# VALIDATE OPTIONS
+# --------------------------------------------------------------------------------------------------
+
+if [[ $arch == "x64" && $msvc_set_to_x64 -eq 0 ]]; then
+  error "Error: you can't build a 64-bit app using the x86 MSVC toolset!\n"
+  exit 1
+elif [[ $arch == "x86" && $msvc_set_to_x64 -eq 1 ]]; then
+  error "Error: you can't build a 32-bit app using the x64 MSVC toolset!\n"
+  exit 1
+fi
+
+if [[ $debug_mode -eq 0 ]]; then
+  if [[ $dev_mode -eq 1 ]]; then
+    printf "${BOLD}${YELLOW}WARNING: You turned on dev mode, but it's going to be disabled since this is a release compile.${NORMAL}\n"
+  fi
+  dev_mode=0
+fi
+
+# --------------------------------------------------------------------------------------------------
+# COMMON COMPILER FLAGS
+# --------------------------------------------------------------------------------------------------
+warning_level="-W4"
+# TODO: reenable -WX and these warnings
+#compiler_warnings="$warning_level -wd4201 -wd4100 -wd4189 -wd4505 -wd4456 -wd4127 -wd4090 -wd4055"
+  # -WX = treat all warnings as errors
+  # -wd4090 ignore different const qualifiers
+  # -wd4055 'type cast': from data pointer 'void *' to function pointer
+compiler_warnings="-wd4090"
+
+compiler_env="$compiler_env -D$platform -D$graphics -DSUPPORT_LOGPRINT_DEBUG=$debug_mode -DMC_INTERNAL=$dev_mode -DMC_SLOW=$debug_mode"
+if [[ $platform_os == "WINDOWS" ]]; then
+  # The engine header (raylib.h) checks for _WIN32, which is set by cl.exe for an x86/x64 target,
+  # however I don't want to rely on that so I'm forcing it.
+  # NOTE: the 32 suffix doesn't imply 32-bit. This is set regardless of the target arch option.
+  compiler_env="-D_WIN32 -DMC_PLATFORM_WIN32 $compiler_env"
+fi
+
+# Debug flags:
+# -Z7  = Put full symbolic debug info in the obj. I prefer this option.
+# -Zi  = Put full symbolic debug info in the pdb without edit and continue feature. Enable that with -ZI.
+# NOTE: both debug and release generate debug info in case we need to step through the release build.
+#       Just don't redistribute the release pdb!
+_debug_sym_flag="-Z7"
+if [[ $debug_mode -eq 1 ]]; then
+   # -MTd = Use multithreaded, static version of run-time library with debug support
+  conditional_flags="-MTd $_debug_sym_flag"
+  printf "${BOLD}Compiling in debug dev mode${NORMAL}\n"
+else
+  # -MT = Use multithreaded, static version of run-time library
+  conditional_flags="-MT $_debug_sym_flag"
+  printf "${BOLD}Compiling in release mode${NORMAL}\n"
+fi
+
+if [[ $optimize_mode -eq 1 ]]; then
+  conditional_flags="$conditional_flags -O2"
+  printf "${BOLD}Optimizations are on${NORMAL}\n"
+else
+  conditional_flags="$conditional_flags -Od"
+  printf "${BOLD}Optimizations are off${NORMAL}\n"
+fi
+
+# NOTE: The engine and game can no longer be compiled in pure C as it needs some C++ features for
+# the debug system.
+compiler_type="-TC" # C switch is -TC and the C++ switch is -TP
+common_compiler_flags="$conditional_flags $compiler_type -fp:fast -EHa- -GS -Gm- -GR- -Oi $compiler_warnings $compiler_env -FC"
+
+if [[ ! $verbose -eq 0 ]]; then log "Compiler flags = " "$common_compiler_flags"; fi
+
+# --------------------------------------------------------------------------------------------------
+# COMMON LINKER FLAGS
+# --------------------------------------------------------------------------------------------------
+common_linker_flags="-incremental:no -opt:ref" # remove junk
+
+# --------------------------------------------------------------------------------------------------
+# BUILD
+# --------------------------------------------------------------------------------------------------
+
+if [[ $optimize_mode -eq 1 ]]; then
+  ctime_build_name="optimized"
+else
+  ctime_build_name="dev"
+fi
+
+ctime -begin ion_compiler_$ctime_build_name.ctm
+
+code_dir="$cwd"
+build_path="../run_tree"
+mkdir "$build_path" -p
+
+enable_verbose_link=$(if [[ $verbose -eq 2 ]]; then echo "-verbose:lib"; else echo ""; fi)
+
+pushd "$build_path" &>/dev/null
+rm *.pdb &>/dev/null
+
+cl_cmd="$msvc_bin/cl -nologo $common_compiler_flags -Qvec-report:1"
+
+# --------------------------------------------------------------------------------------------------
+# COMPILE APP
+# --------------------------------------------------------------------------------------------------
+
+if [[ $console -eq 1 ]]; then
+  _subsystem="console"
+else
+  if [[ $arch == "x86" ]]; then
+    _subsystem="windows,5.02" # Support XP up
+  else
+    _subsystem="windows"
+  fi
+fi
+
+_link_deps="user32.lib"
+app_linker="$common_linker_flags $enable_verbose_link -PDB:renderer_$RANDOM.pdb -subsystem:$_subsystem -entry:mainCRTStartup -machine:$arch $_link_deps -LIBPATH:$build_path -OUT:ion_compiler.exe"
+
+app_cl="$cl_cmd $code_dir/ion_compiler.c -link $app_linker"
+
+if [[ ! $verbose -eq 0 ]]; then log "Platform CL cmd = " "$app_cl"; fi
+if [[ ! $verbose -eq 0 ]]; then log "Platform Link cmd = " "$app_linker"; fi
+
+eval "$app_cl"
+last_error=$?
+
+# DONE!
+popd &>/dev/null
+
+ctime -end ion_compiler_$ctime_build_name.ctm $last_error
