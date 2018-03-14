@@ -6,11 +6,11 @@
   ================================================================================================*/
 
 #include <stdio.h>
-#include <stdint.h>
 #include <stddef.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include "types.h"
 
 #define internal static
 #define global_variable static
