@@ -350,7 +350,7 @@ else
 fi
 
 _link_deps="user32.lib"
-app_linker="$common_linker_flags $enable_verbose_link -PDB:renderer_$RANDOM.pdb -subsystem:$_subsystem -entry:mainCRTStartup -machine:$arch $_link_deps -LIBPATH:$build_path -OUT:ion.exe"
+app_linker="$common_linker_flags $enable_verbose_link -PDB:ion_$RANDOM.pdb -subsystem:$_subsystem -entry:mainCRTStartup -machine:$arch $_link_deps -LIBPATH:$build_path -OUT:ion.exe"
 
 app_cl="$cl_cmd $code_dir/ion.c -link $app_linker"
 

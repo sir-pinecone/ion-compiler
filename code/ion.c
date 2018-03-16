@@ -108,6 +108,15 @@ typedef struct InternStr {
 
 global_variable InternStr *interns; // stretchy buf; static = initialized to 0 by default.
 
+/* Interesting note from James Widman:
+ *
+ * @pervognsen re string interning: something I like to do is,
+ * instead of using a _pointer_ to a canonicalized string, I use the _offset_
+ * from the base address of the storage area for interned strings. That way,
+ * the opaque value can be stable across runs (if you store and load
+ * canonicalized strings between runs).
+ */
+
 internal char *
 StrInternRange(char *start, char *end) {
     // Slower version that uses a stretchy buffer instead of a hash table. Can drop in a hash table
@@ -169,11 +178,23 @@ typedef struct Token {
     char *end;
     union {
         u64 val;
+        char *name; // Interned name for an identifier.
     };
 } Token;
 
 Token token;
 char *stream;
+
+char *keyword_if;
+char *keyword_for;
+char *keyword_while;
+
+internal void
+InitKeywords() {
+    keyword_if = StrIntern("if");
+    keyword_for = StrIntern("for");
+    keyword_while = StrIntern("while");
+}
 
 /*
  * The tokenizer uses a big switch statement because it's fast. The other way
@@ -190,7 +211,7 @@ char *stream;
 // e.g. 1234 (x+y) translates into '1234' '(' 'x' '+' 'y' ')'
 internal void
 NextToken() {
-    token.start = stream; // Not null-terminated at the moment!
+    token.start = stream; // It may not be null-terminated!
     switch (*stream) {
         case '0':
         case '1':
@@ -268,6 +289,7 @@ NextToken() {
                 stream++;
             }
             token.kind = TOKEN_NAME;
+            token.name = StrInternRange(token.start, stream);
         } break;
         default: {
             token.kind = *stream++;
@@ -283,7 +305,7 @@ PrintToken(Token token) {
             printf("TOKEN INT: %llu\n", token.val);
         } break;
         case TOKEN_NAME: {
-            printf("TOKEN NAME: %.*s\n", (int)(token.end - token.start), token.start);
+            printf("TOKEN NAME: %.*s (intern &%p)\n", (int)(token.end - token.start), token.start, token.name);
         } break;
         default: {
             printf("TOKEN '%c'\n", token.kind);
@@ -292,7 +314,7 @@ PrintToken(Token token) {
 }
 
 internal LexTest() {
-    char *source = "+()1234+42_HELLO1,23+foo!Yeah...93";
+    char *source = "XY+(XY)1234+42_HELLO1,23+foo!Yeah...93";
     stream = source;
     NextToken();
     while (token.kind) {
@@ -305,5 +327,8 @@ int main(int argc, char **argv) {
     BufTest();
     LexTest();
     StrInternTest();
+
+    InitKeywords();
+
     return 0;
 }
