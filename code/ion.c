@@ -41,7 +41,7 @@ xmalloc(size_t num_bytes) {
 typedef struct BufHdr {
     size_t len;
     size_t cap;
-    char buf[0];
+    char buf[];
 } BufHdr;
 
 // TIL: You can use commas inside the macro as a replacement for semicolons,
@@ -51,11 +51,11 @@ typedef struct BufHdr {
 
 #define _BufHdr(b) ((BufHdr *)((char *)(b) - offsetof(BufHdr, buf)))
 #define _BufFits(b, n) (BufLen(b) + (n) <= BufCap(b))
-#define _BufFit(b, n) (_BufFits(b, n) ? 0 : ((b) = _BufGrow((b), BufLen(b) + (n), sizeof(*(b)))))
+#define _BufFit(b, n) (_BufFits((b), (n)) ? 0 : ((b) = _BufGrow((b), BufLen(b) + (n), sizeof(*(b)))))
 
 #define BufLen(b) ((b) ? _BufHdr(b)->len : 0)
 #define BufCap(b) ((b) ? _BufHdr(b)->cap : 0)
-#define BufPush(b, x) (_BufFit(b, 1), b[BufLen(b)] = (x), _BufHdr(b)->len++)
+#define BufPush(b, ...) (_BufFit((b), 1), (b)[_BufHdr(b)->len++] = (__VA_ARGS__))
 #define BufFree(b) ((b) ? (free(_BufHdr(b)), (b) = NULL) : 0)
 
 internal void *
