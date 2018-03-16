@@ -322,7 +322,7 @@ else
   ctime_build_name="dev"
 fi
 
-ctime -begin ion_compiler_$ctime_build_name.ctm
+ctime -begin ion_$ctime_build_name.ctm
 
 code_dir="$cwd"
 build_path="../run_tree"
@@ -350,9 +350,9 @@ else
 fi
 
 _link_deps="user32.lib"
-app_linker="$common_linker_flags $enable_verbose_link -PDB:renderer_$RANDOM.pdb -subsystem:$_subsystem -entry:mainCRTStartup -machine:$arch $_link_deps -LIBPATH:$build_path -OUT:ion_compiler.exe"
+app_linker="$common_linker_flags $enable_verbose_link -PDB:renderer_$RANDOM.pdb -subsystem:$_subsystem -entry:mainCRTStartup -machine:$arch $_link_deps -LIBPATH:$build_path -OUT:ion.exe"
 
-app_cl="$cl_cmd $code_dir/ion_compiler.c -link $app_linker"
+app_cl="$cl_cmd $code_dir/ion.c -link $app_linker"
 
 if [[ ! $verbose -eq 0 ]]; then log "Platform CL cmd = " "$app_cl"; fi
 if [[ ! $verbose -eq 0 ]]; then log "Platform Link cmd = " "$app_linker"; fi
@@ -363,4 +363,4 @@ last_error=$?
 # DONE!
 popd &>/dev/null
 
-ctime -end ion_compiler_$ctime_build_name.ctm $last_error
+ctime -end ion_$ctime_build_name.ctm $last_error

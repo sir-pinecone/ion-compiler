@@ -5,6 +5,6 @@ platform=`uname` # 'Linux', 'Darwin', etc
 if [[ "${platform,,}" == *'ming'* ]]; then # convert to lowercase then compare with wildcard
   echo "Running X64 build"
   cd "../run_tree"
-  ./ion_compiler.exe
+  ./ion.exe
 fi
 
