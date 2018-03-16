@@ -49,7 +49,7 @@ typedef struct BufHdr {
 // some commas in the stretchy buffer macros and see that it breaks the
 // compiler.
 
-#define _BufHdr(b) ((BufHdr *)((char *)b - offsetof(BufHdr, b)))
+#define _BufHdr(b) ((BufHdr *)((char *)(b) - offsetof(BufHdr, buf)))
 #define _BufFits(b, n) (BufLen(b) + (n) <= BufCap(b))
 #define _BufFit(b, n) (_BufFits(b, n) ? 0 : ((b) = _BufGrow((b), BufLen(b) + (n), sizeof(*(b)))))
 
