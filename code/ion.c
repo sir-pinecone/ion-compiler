@@ -109,21 +109,33 @@ typedef enum TokenKind {
 
 typedef struct Token {
     TokenKind kind;
+    // All tokens contain the string literal that it represents.
+    char *start;
+    char *end;
     union {
         u64 val;
-        struct {
-            char *start;
-            char *end;
-        };
     };
 } Token;
 
 Token token;
 char *stream;
 
+/*
+ * The tokenizer uses a big switch statement because it's fast. The other way
+ * of doing it would be using if statements to test if the byte is alphabetical
+ * or numeric. We want this to be fast because it's often the case that the
+ * lexer becomes the bottleneck for a simple language compiler. The tokenizer
+ * is working one byte at a time so you want it to process data quickly. A
+ * switch statement will compile to one indirect jmp operation based on the
+ * switch's dispatch value. And it does that using a table. There are often
+ * some range checks, which you may be able to avoid, but it's probably not
+ * that bad for our use case.
+ */
+
 // e.g. 1234 (x+y) translates into '1234' '(' 'x' '+' 'y' ')'
 internal void
 NextToken() {
+    token.start = stream; // Not null-terminated at the moment!
     switch (*stream) {
         case '0':
         case '1':
@@ -197,18 +209,16 @@ NextToken() {
         case 'Y':
         case 'Z':
         case '_': {
-            char *start = stream;
             while (isalnum(*stream) || *stream == '_') {
                 stream++;
             }
             token.kind = TOKEN_NAME;
-            token.start = start; // Not null-terminated at the moment!
-            token.end = stream;
         } break;
         default: {
             token.kind = *stream++;
         } break;
     }
+    token.end = stream;
 }
 
 inline void
