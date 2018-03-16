@@ -44,6 +44,11 @@ typedef struct BufHdr {
     char buf[0];
 } BufHdr;
 
+// TIL: You can use commas inside the macro as a replacement for semicolons,
+// when a semicolon would present problems. You can verify this by replacing
+// some commas in the stretchy buffer macros and see that it breaks the
+// compiler.
+
 #define buf__hdr(b) ((BufHdr *)((char *)b - offsetof(BufHdr, b)))
 #define buf__fits(b, n) (BufLen(b) + (n) <= BufCap(b))
 #define buf__fit(b, n) (buf__fits(b, n) ? 0 : ((b) = __BufGrow((b), BufLen(b) + (n), sizeof(*(b)))))
@@ -51,7 +56,7 @@ typedef struct BufHdr {
 #define BufLen(b) ((b) ? buf__hdr(b)->len : 0)
 #define BufCap(b) ((b) ? buf__hdr(b)->cap : 0)
 #define BufPush(b, x) (buf__fit(b, 1), b[BufLen(b)] = (x), buf__hdr(b)->len++)
-#define BufFree(b) ((b) ? free(buf__hdr(b)) : 0)
+#define BufFree(b) ((b) ? (free(buf__hdr(b)), (b) = NULL) : 0)
 
 internal void *
 __BufGrow(void *buf, size_t new_len, size_t elem_size) {
@@ -82,6 +87,7 @@ __BufGrow(void *buf, size_t new_len, size_t elem_size) {
 internal void
 BufTest() {
     s32 *buf = NULL;
+    assert(BufLen(buf) == 0);
     enum { N = 1024 };
     for (u32 i = 0; i < N; i++) {
         BufPush(buf, i);
@@ -91,6 +97,8 @@ BufTest() {
         assert(buf[i] == i);
     }
     BufFree(buf);
+    assert(buf == NULL);
+    assert(BufLen(buf) == 0);
 }
 
 typedef enum TokenKind {
