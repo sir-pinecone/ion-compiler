@@ -49,17 +49,17 @@ typedef struct BufHdr {
 // some commas in the stretchy buffer macros and see that it breaks the
 // compiler.
 
-#define buf__hdr(b) ((BufHdr *)((char *)b - offsetof(BufHdr, b)))
-#define buf__fits(b, n) (BufLen(b) + (n) <= BufCap(b))
-#define buf__fit(b, n) (buf__fits(b, n) ? 0 : ((b) = __BufGrow((b), BufLen(b) + (n), sizeof(*(b)))))
+#define _BufHdr(b) ((BufHdr *)((char *)b - offsetof(BufHdr, b)))
+#define _BufFits(b, n) (BufLen(b) + (n) <= BufCap(b))
+#define _BufFit(b, n) (_BufFits(b, n) ? 0 : ((b) = _BufGrow((b), BufLen(b) + (n), sizeof(*(b)))))
 
-#define BufLen(b) ((b) ? buf__hdr(b)->len : 0)
-#define BufCap(b) ((b) ? buf__hdr(b)->cap : 0)
-#define BufPush(b, x) (buf__fit(b, 1), b[BufLen(b)] = (x), buf__hdr(b)->len++)
-#define BufFree(b) ((b) ? (free(buf__hdr(b)), (b) = NULL) : 0)
+#define BufLen(b) ((b) ? _BufHdr(b)->len : 0)
+#define BufCap(b) ((b) ? _BufHdr(b)->cap : 0)
+#define BufPush(b, x) (_BufFit(b, 1), b[BufLen(b)] = (x), _BufHdr(b)->len++)
+#define BufFree(b) ((b) ? (free(_BufHdr(b)), (b) = NULL) : 0)
 
 internal void *
-__BufGrow(void *buf, size_t new_len, size_t elem_size) {
+_BufGrow(void *buf, size_t new_len, size_t elem_size) {
     // @document The regrowth strategy.
     //
     // From stream: How about using a buffer regrow factor of 1.5? It's
@@ -75,7 +75,7 @@ __BufGrow(void *buf, size_t new_len, size_t elem_size) {
     size_t new_size = offsetof(BufHdr, buf) + new_cap * elem_size;
     BufHdr *new_hdr;
     if (buf) {
-        new_hdr = xrealloc(buf__hdr(buf), new_size);
+        new_hdr = xrealloc(_BufHdr(buf), new_size);
     } else {
         new_hdr = xmalloc(new_size);
         new_hdr->len = 0;
