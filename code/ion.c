@@ -101,6 +101,61 @@ BufTest() {
     assert(BufLen(buf) == 0);
 }
 
+typedef struct InternStr {
+    size_t len;
+    char *str;
+} InternStr;
+
+global_variable InternStr *interns; // stretchy buf; static = initialized to 0 by default.
+
+internal char *
+StrInternRange(char *start, char *end) {
+    // Slower version that uses a stretchy buffer instead of a hash table. Can drop in a hash table
+    // later since that's an implementation detail.
+
+    size_t len = end - start;
+    for (size_t i = 0; i < BufLen(interns); ++i) {
+        if ((interns[i].len == len) && strncmp(interns[i].str, start, len) == 0) {
+            return interns[i].str;
+        }
+    }
+
+    // Allocate memory for storage as opposed to making the str member in the
+    // InternStr struct an empty array, i.e. char str[0]. You would get a flat,
+    // ordered array of memory, but the intern pointers would change when the
+    // stretchy buffer grows (realloc). We want the pointers to be stable so we
+    // handle the allocation with malloc. You can speed this up by allocating
+    // the strings out of a big linear array, like an arena, but for now this
+    // works.
+    char *str = xmalloc(len + 1); // We want to store c-strings in the buffer, so +1 for null-terminator.
+    memcpy(str, start, len);
+    str[len] = 0;
+    BufPush(interns, (InternStr){len, str});
+    return str;
+}
+
+internal char *
+StrIntern(char *str) {
+    return StrInternRange(str, str + strlen(str));
+}
+
+internal void
+StrInternTest() {
+    char a[] = "hello";
+    char b[] = "hello";
+    assert(a != b);
+    char *pa = StrIntern(a);
+    char *pb = StrIntern(b);
+    assert(pa == pb);
+
+    char c[] = "foo";
+    assert(StrIntern(c) != pa);
+
+    char d[] = "hello!";
+    char *pd = StrIntern(d);
+    assert(pd != pa);
+}
+
 typedef enum TokenKind {
     TOKEN_INT = 128, // Reserve first 128 ascii values?
     TOKEN_NAME,
@@ -249,5 +304,6 @@ internal LexTest() {
 int main(int argc, char **argv) {
     BufTest();
     LexTest();
+    StrInternTest();
     return 0;
 }

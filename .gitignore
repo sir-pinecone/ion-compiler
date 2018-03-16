@@ -222,3 +222,5 @@ data/*.hmi
 !run_tree/
 run_tree/*
 !run_tree/data/
+
+My Amplifier Results */

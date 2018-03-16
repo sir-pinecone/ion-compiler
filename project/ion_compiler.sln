@@ -17,6 +17,10 @@ Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "ion_compiler", "..\run_tree
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Code", "Code", "{923FE2FA-DD49-4BF2-B442-A44B54EBDCC0}"
+	ProjectSection(SolutionItems) = preProject
+		..\code\ion.c = ..\code\ion.c
+		..\code\types.h = ..\code\types.h
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
