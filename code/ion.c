@@ -345,7 +345,7 @@ LexTest() {
 /* Grammar in order of precedence:
  *
  * expr3 = INT | '(' expr ')'
- * expr2 = [-]expr2 | expr3      (unary is right-associative)
+ * expr2 = [-+]expr2 | expr3     (unary is right-associative)
  * expr1 = expr2 ([/*] expr2)*   (left-associative)
  * expr0 = expr1 ([+-] expr1)*   (left-associative)
  * expr  = expr0
@@ -380,11 +380,18 @@ ParseExpr3() {
 internal s32
 ParseExpr2() {
     s32 result;
-    if (MatchToken('-')) {
-        printf("-");
-        result = -ParseExpr2();
-    }
-    else {
+    if (IsToken('-') || IsToken('+')) {
+        char op = token.kind;
+        printf("%c", op);
+        NextToken();
+        s32 rval = ParseExpr2();
+        if (op == '-') {
+            result = -rval;
+        } else {
+            assert(op == '+');
+            result = rval;
+        }
+    } else {
         result = ParseExpr3();
     }
 
@@ -463,6 +470,9 @@ ParseTest() {
     TEST_EXPR((10/5)*((2-5)+(25/5)), 4);
     TEST_EXPR(-----3, -3);
     TEST_EXPR(---(-3), 3);
+    TEST_EXPR(+3, 3);
+    TEST_EXPR(-+3, -3);
+    TEST_EXPR(+-3, -3); // Do I want this to become positive?
 
     // @improve Have a way to test for expected failures, such as a divide by 0.
     //TEST_EXPR(1/0, 3);
