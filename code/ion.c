@@ -345,7 +345,7 @@ LexTest() {
 /* Grammar in order of precedence:
  *
  * expr3 = INT | '(' expr ')'
- * expr2 = [-]expr3 | expr3
+ * expr2 = [-]expr2 | expr3      (unary is right-associative)
  * expr1 = expr2 ([/*] expr2)*   (left-associative)
  * expr0 = expr1 ([+-] expr1)*   (left-associative)
  * expr  = expr0
@@ -382,7 +382,7 @@ ParseExpr2() {
     s32 result;
     if (MatchToken('-')) {
         printf("-");
-        result = -ParseExpr3();
+        result = -ParseExpr2();
     }
     else {
         result = ParseExpr3();
@@ -461,6 +461,11 @@ ParseTest() {
     TEST_EXPR(2+-3, -1);
     TEST_EXPR(-(3+8-2), -9);
     TEST_EXPR((10/5)*((2-5)+(25/5)), 4);
+    TEST_EXPR(-----3, -3);
+    TEST_EXPR(---(-3), 3);
+
+    // @improve Have a way to test for expected failures, such as a divide by 0.
+    //TEST_EXPR(1/0, 3);
 }
 
 #undef TEST_EXPR
