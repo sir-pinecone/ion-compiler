@@ -345,9 +345,9 @@ LexTest() {
 /* Grammar in order of precedence:
  *
  * expr3 = INT | '(' expr ')'
- * expr2 = [- + ~]expr2 | expr3     (unary is right-associative)
+ * expr2 = [- + ~]expr2 | expr3             (unary is right-associative)
  * expr1 = expr2 ([/ * % << >> &] expr2)*   (left-associative)
- * expr0 = expr1 ([+ -] expr1)*   (left-associative)
+ * expr0 = expr1 ([+ - | ^] expr1)*         (left-associative)
  * expr  = expr0
  *
  */
@@ -447,7 +447,7 @@ internal s32
 ParseExpr0() {
     // Left associative
     s32 result = ParseExpr1();
-    while (IsToken('+') || IsToken('-')) {
+    while (IsToken('+') || IsToken('-') || IsToken('|') || IsToken('^')) {
         char op = token.kind;
         printf("%c", op);
         NextToken();
@@ -456,9 +456,13 @@ ParseExpr0() {
         // Left-fold
         if (op == '+') {
             result += rval;
-        } else {
-            assert(op == '-');
+        } else if (op == '-') {
             result -= rval;
+        } else if (op == '|') {
+            result |= rval;
+        } else {
+            assert(op == '^');
+            result ^= rval;
         }
     }
 
@@ -504,6 +508,14 @@ ParseTest() {
     TEST_EXPR(~1, -2);
     TEST_EXPR(~-2, 1);
     TEST_EXPR(~0, -1);
+
+    TEST_EXPR(2^10, 8);
+    TEST_EXPR(10^-4, -10);
+    TEST_EXPR(-10^-4, 10);
+
+    TEST_EXPR(2|10, 10);
+    TEST_EXPR(10|-4, -2);
+    TEST_EXPR(-10|-4, -2);
 
     TEST_EXPR(8%3, 2);
     TEST_EXPR(9%1, 0);
