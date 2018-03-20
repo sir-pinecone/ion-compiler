@@ -447,16 +447,23 @@ ParseExprStr(char *str) {
     return result;
 }
 
+#define TEST_EXPR(x, r) assert(ParseExprStr(#x) == (r))
+
 internal void
 ParseTest() {
-    assert(ParseExprStr("1") == 1);
-    assert(ParseExprStr("(1)") == 1);
-    assert(ParseExprStr("(1+2)") == 3);
-    assert(ParseExprStr("2*5+2") == 12);
-    assert(ParseExprStr("-5") == -5);
-    assert(ParseExprStr("-(3+8-2)") == -9);
-    assert(ParseExprStr("(10/5)*((2-5)+(25/5))") == 4);
+    TEST_EXPR(1, 1);
+    TEST_EXPR(-5, -5);
+    TEST_EXPR((1), 1);
+    TEST_EXPR((1+2), 3);
+    TEST_EXPR(1-2-3, -4);
+    TEST_EXPR(2*3+4*5, 26);
+    TEST_EXPR(2*(3+4)*5, 70);
+    TEST_EXPR(2+-3, -1);
+    TEST_EXPR(-(3+8-2), -9);
+    TEST_EXPR((10/5)*((2-5)+(25/5)), 4);
 }
+
+#undef TEST_EXPR
 
 int main(int argc, char **argv) {
     BufTest();
