@@ -345,9 +345,9 @@ LexTest() {
 /* Grammar in order of precedence:
  *
  * expr3 = INT | '(' expr ')'
- * expr2 = [-+~]expr2 | expr3     (unary is right-associative)
- * expr1 = expr2 ([/*] expr2)*   (left-associative)
- * expr0 = expr1 ([+-] expr1)*   (left-associative)
+ * expr2 = [- + ~]expr2 | expr3     (unary is right-associative)
+ * expr1 = expr2 ([/ * << >>] expr2)*   (left-associative)
+ * expr0 = expr1 ([+ -] expr1)*   (left-associative)
  * expr  = expr0
  *
  */
@@ -405,18 +405,33 @@ internal s32
 ParseExpr1() {
     // Left associative
     s32 result = ParseExpr2();
-    while (IsToken('*') || IsToken('/')) {
+    while (IsToken('*') || IsToken('/') || IsToken('<') || IsToken('>')) {
         char op = token.kind;
         printf("%c", op);
         NextToken();
 
+        if (op == '<' || op == '>') {
+            if (IsToken(op)) {
+                printf("%c", op);
+                NextToken();
+            }
+            else {
+                Fatal("Expected token '%c', but got %s", op, TokenKindName(token.kind));
+                return 0;
+            }
+        }
+
         s32 rval = ParseExpr2();
         if (op == '*') {
             result *= rval;
-        } else {
-            assert(op == '/');
+        } else if (op == '/') {
             assert(rval != 0);
             result /= rval;
+        } else if (op == '<') {
+            result = result << rval;
+        } else {
+            assert(op == '>');
+            result = result >> rval;
         }
     }
 
@@ -485,6 +500,8 @@ ParseTest() {
     TEST_EXPR(~-2, 1);
     TEST_EXPR(~0, -1);
 
+    TEST_EXPR(2<<4, 32);
+    TEST_EXPR(32>>2, 8);
 
     // @improve Have a way to test for expected failures, such as a divide by 0.
     //TEST_EXPR(1/0, 3);
