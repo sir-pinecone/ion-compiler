@@ -346,7 +346,7 @@ LexTest() {
  *
  * expr3 = INT | '(' expr ')'
  * expr2 = [- + ~]expr2 | expr3     (unary is right-associative)
- * expr1 = expr2 ([/ * << >>] expr2)*   (left-associative)
+ * expr1 = expr2 ([/ * % << >> &] expr2)*   (left-associative)
  * expr0 = expr1 ([+ -] expr1)*   (left-associative)
  * expr  = expr0
  *
@@ -405,7 +405,8 @@ internal s32
 ParseExpr1() {
     // Left associative
     s32 result = ParseExpr2();
-    while (IsToken('*') || IsToken('/') || IsToken('<') || IsToken('>')) {
+    while (IsToken('*') || IsToken('/') || IsToken('<') || IsToken('>') ||
+           IsToken('%') || IsToken('&')) {
         char op = token.kind;
         printf("%c", op);
         NextToken();
@@ -427,6 +428,10 @@ ParseExpr1() {
         } else if (op == '/') {
             assert(rval != 0);
             result /= rval;
+        } else if (op == '%') {
+            result %= rval;
+        } else if (op == '&') {
+            result &= rval;
         } else if (op == '<') {
             result = result << rval;
         } else {
@@ -499,6 +504,12 @@ ParseTest() {
     TEST_EXPR(~1, -2);
     TEST_EXPR(~-2, 1);
     TEST_EXPR(~0, -1);
+
+    TEST_EXPR(8%3, 2);
+    TEST_EXPR(9%1, 0);
+
+    TEST_EXPR(22&12, 4);
+    TEST_EXPR(22&-4, 20);
 
     TEST_EXPR(2<<4, 32);
     TEST_EXPR(32>>2, 8);
