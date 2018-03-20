@@ -345,7 +345,7 @@ LexTest() {
 /* Grammar in order of precedence:
  *
  * expr3 = INT | '(' expr ')'
- * expr2 = [-+]expr2 | expr3     (unary is right-associative)
+ * expr2 = [-+~]expr2 | expr3     (unary is right-associative)
  * expr1 = expr2 ([/*] expr2)*   (left-associative)
  * expr0 = expr1 ([+-] expr1)*   (left-associative)
  * expr  = expr0
@@ -379,14 +379,17 @@ ParseExpr3() {
 
 internal s32
 ParseExpr2() {
+    // Right associative
     s32 result;
-    if (IsToken('-') || IsToken('+')) {
+    if (IsToken('-') || IsToken('+') || IsToken('~')) {
         char op = token.kind;
         printf("%c", op);
         NextToken();
         s32 rval = ParseExpr2();
         if (op == '-') {
             result = -rval;
+        } else if (op == '~') {
+            result = ~rval;
         } else {
             assert(op == '+');
             result = rval;
@@ -400,6 +403,7 @@ ParseExpr2() {
 
 internal s32
 ParseExpr1() {
+    // Left associative
     s32 result = ParseExpr2();
     while (IsToken('*') || IsToken('/')) {
         char op = token.kind;
@@ -421,6 +425,7 @@ ParseExpr1() {
 
 internal s32
 ParseExpr0() {
+    // Left associative
     s32 result = ParseExpr1();
     while (IsToken('+') || IsToken('-')) {
         char op = token.kind;
@@ -468,11 +473,18 @@ ParseTest() {
     TEST_EXPR(2+-3, -1);
     TEST_EXPR(-(3+8-2), -9);
     TEST_EXPR((10/5)*((2-5)+(25/5)), 4);
+
     TEST_EXPR(-----3, -3);
     TEST_EXPR(---(-3), 3);
+
     TEST_EXPR(+3, 3);
     TEST_EXPR(-+3, -3);
-    TEST_EXPR(+-3, -3); // Do I want this to become positive?
+    TEST_EXPR(+-3, -3);
+
+    TEST_EXPR(~1, -2);
+    TEST_EXPR(~-2, 1);
+    TEST_EXPR(~0, -1);
+
 
     // @improve Have a way to test for expected failures, such as a divide by 0.
     //TEST_EXPR(1/0, 3);
