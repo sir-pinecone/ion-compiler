@@ -5,11 +5,14 @@
   Notice: (C) Copyright 2018 by Jelly Pixel, Inc. All Rights Reserved.
   ================================================================================================*/
 
+#define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <stddef.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
+#include <stdarg.h>
 #include "types.h"
 
 #define internal static
@@ -17,7 +20,7 @@
 
 #define MAX(a, b) ((a) >= (b) ? (a) : (b))
 
-void *
+internal void *
 xrealloc(void *ptr, size_t num_bytes) {
     ptr = realloc(ptr, num_bytes);
     if (!ptr) {
@@ -28,7 +31,7 @@ xrealloc(void *ptr, size_t num_bytes) {
     return ptr;
 }
 
-void *
+internal void *
 xmalloc(size_t num_bytes) {
     void *ptr = malloc(num_bytes);
     if (!ptr) {
@@ -36,6 +39,18 @@ xmalloc(size_t num_bytes) {
         exit(1);
     }
     return ptr;
+}
+
+internal void
+Fatal(char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    // Unsafe for now, but we'll replace it with a stretchy buffer string builder eventually...
+    printf("FATAl: ");
+    vprintf(format, args);
+    printf("\n");
+    va_end(args);
+    exit(1);
 }
 
 typedef struct BufHdr {
@@ -182,6 +197,28 @@ typedef struct Token {
     };
 } Token;
 
+// @warning This returns a pointer to a static internal buffer, so it'll be overwritten next call.
+internal char *
+TokenKindName(TokenKind kind) {
+    static char buf[256];
+    switch(kind) {
+        case TOKEN_INT: {
+            sprintf(buf, "integer");
+        } break;
+        case TOKEN_NAME: {
+            sprintf(buf, "name");
+        } break;
+        default: {
+            if (kind < 128 && isprint(kind)) {
+                sprintf(buf, "'%c'", kind);
+            } else {
+                sprintf(buf, "<ASCII %d>", kind);
+            }
+        }
+    }
+    return buf;
+}
+
 Token token;
 char *stream;
 
@@ -213,16 +250,8 @@ internal void
 NextToken() {
     token.start = stream; // It may not be null-terminated!
     switch (*stream) {
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9': {
+        case '0': case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9': {
             u64 val = 0;
             while(isdigit(*stream)) {
                 val *= 10; // Shifts everything over every time we see a new digit.
@@ -232,59 +261,12 @@ NextToken() {
             token.val = val;
         } break;
 
-        case 'a':
-        case 'b':
-        case 'c':
-        case 'd':
-        case 'e':
-        case 'f':
-        case 'g':
-        case 'h':
-        case 'i':
-        case 'j':
-        case 'k':
-        case 'l':
-        case 'm':
-        case 'n':
-        case 'o':
-        case 'p':
-        case 'q':
-        case 'r':
-        case 's':
-        case 't':
-        case 'u':
-        case 'v':
-        case 'w':
-        case 'x':
-        case 'y':
-        case 'z':
-        case 'A':
-        case 'B':
-        case 'C':
-        case 'D':
-        case 'E':
-        case 'F':
-        case 'G':
-        case 'H':
-        case 'I':
-        case 'J':
-        case 'K':
-        case 'L':
-        case 'M':
-        case 'N':
-        case 'O':
-        case 'P':
-        case 'Q':
-        case 'R':
-        case 'S':
-        case 'T':
-        case 'U':
-        case 'V':
-        case 'W':
-        case 'X':
-        case 'Y':
-        case 'Z':
-        case '_': {
+        case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i':
+        case 'j': case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r':
+        case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z': case 'A':
+        case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J':
+        case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S':
+        case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z': case '_': {
             while (isalnum(*stream) || *stream == '_') {
                 stream++;
             }
@@ -296,6 +278,12 @@ NextToken() {
         } break;
     }
     token.end = stream;
+}
+
+inline void
+InitStream(char *str) {
+    stream = str;
+    NextToken();
 }
 
 inline void
@@ -313,22 +301,136 @@ PrintToken(Token token) {
     }
 }
 
-internal LexTest() {
+inline b32
+IsToken(TokenKind kind) {
+    return token.kind == kind;
+}
+
+inline b32
+IsTokenName(char *name) {
+    return token.kind == TOKEN_NAME && token.name == name;
+}
+
+inline b32
+MatchToken(TokenKind kind) {
+    if (IsToken(kind)) {
+        NextToken();
+        return true;
+    } else {
+        return false;
+    }
+}
+
+inline b32
+ExpectToken(TokenKind kind) {
+    if (IsToken(kind)) {
+        NextToken();
+        return true;
+    } else {
+        Fatal("Expected token: %s, got %s", TokenKindName(kind), TokenKindName(token.kind));
+        return false;
+    }
+}
+
+internal void
+LexTest() {
     char *source = "XY+(XY)1234+42_HELLO1,23+foo!Yeah...93";
-    stream = source;
-    NextToken();
+    InitStream(source);
     while (token.kind) {
-        PrintToken(token);
+        //PrintToken(token);
         NextToken();
     }
+}
+
+/* Grammar in order of precedence:
+ *
+ * expr3 = INT | '(' expr ')'
+ * expr2 = [-]expr3 | expr3
+ * expr1 = expr2 ([/*] expr2)*   (left-associative)
+ * expr0 = expr1 ([+-] expr1)*   (left-associative)
+ * expr  = expr0
+ *
+ */
+
+void ParseExpr();
+
+internal void
+ParseExpr3() {
+    if (IsToken(TOKEN_INT)) {
+        printf("%llu", token.val);
+        NextToken();
+    }
+    else if (MatchToken('(')) {
+        printf("(");
+        ParseExpr();
+        ExpectToken(')');
+        printf(")");
+    }
+    else {
+        Fatal("Expected integer or '(', got %s", TokenKindName(token.kind));
+    }
+}
+
+internal void
+ParseExpr2() {
+    if (MatchToken('-')) {
+        printf("-");
+        ParseExpr3();
+    }
+    else {
+        ParseExpr3();
+    }
+}
+
+internal void
+ParseExpr1() {
+    ParseExpr2();
+    while (IsToken('*') || IsToken('/')) {
+        char op = token.kind;
+        printf("%c", op);
+        NextToken();
+        ParseExpr2();
+    }
+}
+
+internal void
+ParseExpr0() {
+    ParseExpr1();
+    while (IsToken('+') || IsToken('-')) {
+        char op = token.kind;
+        printf("%c", op);
+        NextToken();
+        ParseExpr1();
+    }
+}
+
+internal void
+ParseExpr() {
+    ParseExpr0();
+}
+
+inline void
+TestParseExpr(char *expr) {
+    InitStream(expr);
+    printf("\nParse test for \"%s\":\n  ", expr);
+    ParseExpr();
+    printf("\n");
+}
+
+internal void
+ParseTest() {
+    TestParseExpr("1");
+    TestParseExpr("(1)");
+    TestParseExpr("(1+2)");
 }
 
 int main(int argc, char **argv) {
     BufTest();
     LexTest();
     StrInternTest();
-
     InitKeywords();
+
+    ParseTest();
 
     return 0;
 }
