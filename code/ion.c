@@ -192,7 +192,7 @@ typedef struct Token {
     char *start;
     char *end;
     union {
-        u64 val;
+        s32 val;
         char *name; // Interned name for an identifier.
     };
 } Token;
@@ -252,7 +252,7 @@ NextToken() {
     switch (*stream) {
         case '0': case '1': case '2': case '3': case '4':
         case '5': case '6': case '7': case '8': case '9': {
-            u64 val = 0;
+            s32 val = 0;
             while(isdigit(*stream)) {
                 val *= 10; // Shifts everything over every time we see a new digit.
                 val += *stream++ - '0';
@@ -290,7 +290,7 @@ inline void
 PrintToken(Token token) {
     switch(token.kind) {
         case TOKEN_INT: {
-            printf("TOKEN INT: %llu\n", token.val);
+            printf("TOKEN INT: %d\n", token.val);
         } break;
         case TOKEN_NAME: {
             printf("TOKEN NAME: %.*s (intern &%p)\n", (int)(token.end - token.start), token.start, token.name);
@@ -352,76 +352,110 @@ LexTest() {
  *
  */
 
-void ParseExpr();
+s32 ParseExpr();
 
-internal void
+internal s32
 ParseExpr3() {
+    s32 result;
+
     if (IsToken(TOKEN_INT)) {
-        printf("%llu", token.val);
+        printf("%d", token.val);
+        result = token.val;
         NextToken();
     }
     else if (MatchToken('(')) {
         printf("(");
-        ParseExpr();
+        result = ParseExpr();
         ExpectToken(')');
         printf(")");
     }
     else {
         Fatal("Expected integer or '(', got %s", TokenKindName(token.kind));
+        result = 0;
     }
+
+    return result;
 }
 
-internal void
+internal s32
 ParseExpr2() {
+    s32 result;
     if (MatchToken('-')) {
         printf("-");
-        ParseExpr3();
+        result = -ParseExpr3();
     }
     else {
-        ParseExpr3();
+        result = ParseExpr3();
     }
+
+    return result;
 }
 
-internal void
+internal s32
 ParseExpr1() {
-    ParseExpr2();
+    s32 result = ParseExpr2();
     while (IsToken('*') || IsToken('/')) {
         char op = token.kind;
         printf("%c", op);
         NextToken();
-        ParseExpr2();
+
+        s32 rval = ParseExpr2();
+        if (op == '*') {
+            result *= rval;
+        } else {
+            assert(op == '/');
+            assert(rval != 0);
+            result /= rval;
+        }
     }
+
+    return result;
 }
 
-internal void
+internal s32
 ParseExpr0() {
-    ParseExpr1();
+    s32 result = ParseExpr1();
     while (IsToken('+') || IsToken('-')) {
         char op = token.kind;
         printf("%c", op);
         NextToken();
-        ParseExpr1();
+
+        s32 rval = ParseExpr1();
+        // Left-fold
+        if (op == '+') {
+            result += rval;
+        } else {
+            assert(op == '-');
+            result -= rval;
+        }
     }
+
+    return result;
 }
 
-internal void
+internal s32
 ParseExpr() {
-    ParseExpr0();
+    return ParseExpr0();
 }
 
-inline void
-TestParseExpr(char *expr) {
-    InitStream(expr);
-    printf("\nParse test for \"%s\":\n  ", expr);
-    ParseExpr();
-    printf("\n");
+inline s32
+ParseExprStr(char *str) {
+    InitStream(str);
+    printf("\nParse test for \"%s\":\n  ", str);
+    s32 result = ParseExpr();
+    printf(" = %d\n", result);
+    return result;
 }
 
 internal void
 ParseTest() {
-    TestParseExpr("1");
-    TestParseExpr("(1)");
-    TestParseExpr("(1+2)");
+    assert(ParseExprStr("1") == 1);
+    assert(ParseExprStr("(1)") == 1);
+    assert(ParseExprStr("(1+2)") == 3);
+    assert(ParseExprStr("2*5+2") == 12);
+    assert(ParseExprStr("-5") == -5);
+    assert(ParseExprStr("-(3+8-2)") == -9);
+    assert(ParseExprStr("(10/5)*((2-5)+(25/5))") == 4);
 }
 
 int main(int argc, char **argv) {
