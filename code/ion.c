@@ -67,13 +67,12 @@ typedef struct BufHdr {
 // compiler.
 
 #define _buf_hdr(b) ((BufHdr *)((char *)(b) - offsetof(BufHdr, buf)))
-#define _buf_fits(b, n) (buf_count(b) + (n) <= buf_cap(b))
-#define _buf_fit(b, n) (_buf_fits((b), (n)) ? 0 : ((b) = _buf_grow((b), buf_count(b) + (n), sizeof(*(b)))))
 
 #define buf_count(b) ((b) ? _buf_hdr(b)->len : 0)
 #define buf_cap(b) ((b) ? _buf_hdr(b)->cap : 0)
 #define buf_end(b) ((b) + buf_count(b))
-#define buf_push(b, ...) (_buf_fit((b), 1), (b)[_buf_hdr(b)->len++] = (__VA_ARGS__))
+#define buf_fit(b, n) ((n) <= buf_cap(b) ? 0 : ((b) = _buf_grow((b), (n), sizeof(*(b)))))
+#define buf_push(b, ...) (buf_fit((b), 1 + buf_count(b)), (b)[_buf_hdr(b)->len++] = (__VA_ARGS__))
 #define buf_free(b) ((b) ? (free(_buf_hdr(b)), (b) = NULL) : 0)
 
 internal void *
@@ -407,8 +406,7 @@ expect_token(TokenKind kind) {
 
 internal void
 lex_test() {
-    char *source = "XY+(XY)1234+42_HELLO1,23+foo!Yeah...93<<8+8>>2+(2**4)";
-    init_stream(source);
+    init_stream("XY+(XY)1234+42_HELLO1,23+foo!Yeah...93<<8+8>>2+(2**4)");
     assert_token_name("XY");
     assert_token('+');
     assert_token('(');
