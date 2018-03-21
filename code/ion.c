@@ -67,11 +67,12 @@ typedef struct BufHdr {
 // compiler.
 
 #define _buf_hdr(b) ((BufHdr *)((char *)(b) - offsetof(BufHdr, buf)))
-#define _buf_fits(b, n) (buf_len(b) + (n) <= buf_cap(b))
-#define _buf_fit(b, n) (_buf_fits((b), (n)) ? 0 : ((b) = _buf_grow((b), buf_len(b) + (n), sizeof(*(b)))))
+#define _buf_fits(b, n) (buf_count(b) + (n) <= buf_cap(b))
+#define _buf_fit(b, n) (_buf_fits((b), (n)) ? 0 : ((b) = _buf_grow((b), buf_count(b) + (n), sizeof(*(b)))))
 
-#define buf_len(b) ((b) ? _buf_hdr(b)->len : 0)
+#define buf_count(b) ((b) ? _buf_hdr(b)->len : 0)
 #define buf_cap(b) ((b) ? _buf_hdr(b)->cap : 0)
+#define buf_end(b) ((b) + buf_count(b))
 #define buf_push(b, ...) (_buf_fit((b), 1), (b)[_buf_hdr(b)->len++] = (__VA_ARGS__))
 #define buf_free(b) ((b) ? (free(_buf_hdr(b)), (b) = NULL) : 0)
 
@@ -104,26 +105,26 @@ _buf_grow(void *buf, size_t new_len, size_t elem_size) {
 internal void
 buf_test() {
     s32 *buf = NULL;
-    assert(buf_len(buf) == 0);
+    assert(buf_count(buf) == 0);
     enum { N = 1024 };
     for (u32 i = 0; i < N; i++) {
         buf_push(buf, i);
     }
-    assert(buf_len(buf) == N);
-    for (u32 i = 0; i < buf_len(buf); i++) {
+    assert(buf_count(buf) == N);
+    for (u32 i = 0; i < buf_count(buf); i++) {
         assert(buf[i] == i);
     }
     buf_free(buf);
     assert(buf == NULL);
-    assert(buf_len(buf) == 0);
+    assert(buf_count(buf) == 0);
 }
 
-typedef struct InternStr {
+typedef struct Intern {
     size_t len;
     char *str;
-} InternStr;
+} Intern;
 
-global_variable InternStr *interns; // stretchy buf; static = initialized to 0 by default.
+global_variable Intern *interns; // stretchy buf; static = initialized to 0 by default.
 
 /* Interesting note from James Widman:
  *
@@ -140,14 +141,16 @@ str_intern_range(char *start, char *end) {
     // later since that's an implementation detail.
 
     size_t len = end - start;
-    for (size_t i = 0; i < buf_len(interns); ++i) {
-        if ((interns[i].len == len) && strncmp(interns[i].str, start, len) == 0) {
-            return interns[i].str;
+    for (Intern *it = interns;
+         it != buf_end(interns);
+         ++it) {
+        if ((it->len == len) && (strncmp(it->str, start, len) == 0)) {
+            return it->str;
         }
     }
 
     // Allocate memory for storage as opposed to making the str member in the
-    // InternStr struct an empty array, i.e. char str[0]. You would get a flat,
+    // Intern struct an empty array, i.e. char str[0]. You would get a flat,
     // ordered array of memory, but the intern pointers would change when the
     // stretchy buffer grows (realloc). We want the pointers to be stable so we
     // handle the allocation with malloc. You can speed this up by allocating
@@ -156,7 +159,7 @@ str_intern_range(char *start, char *end) {
     char *str = xmalloc(len + 1); // We want to store c-strings in the buffer, so +1 for null-terminator.
     memcpy(str, start, len);
     str[len] = 0;
-    buf_push(interns, (InternStr){len, str});
+    buf_push(interns, (Intern){len, str});
     return str;
 }
 
