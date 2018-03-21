@@ -88,9 +88,19 @@ _buf_grow(void *buf, size_t new_len, size_t elem_size) {
     // the theoretical maximum amount that you want for the buffer and take
     // advantage of the fact that the kernel will not make pages resident until
     // you touch them (:
+
+    // Protect against an overflow. This is derived from: 1 + 2 * buf_cap(buf) < SIZE_MAX
+    // because we can't assert that as is. Since SIZE_MAX is the
+    // largest possible value, if the lhs was to overflow then it would wrap
+    // around to a small(er) value and that would be less than SIZE_MAX.
+    assert(buf_cap(buf) <= (SIZE_MAX - 1) / 2);
+
     size_t new_cap = MAX(1 + 2 * buf_cap(buf), new_len);
     assert(new_len <= new_cap);
+    assert(new_cap <= (SIZE_MAX - offsetof(BufHdr, buf)) / elem_size); // Overflow check.
+
     size_t new_size = offsetof(BufHdr, buf) + new_cap * elem_size;
+
     BufHdr *new_hdr;
     if (buf) {
         new_hdr = xrealloc(_buf_hdr(buf), new_size);
