@@ -203,6 +203,7 @@ typedef enum TokenKind {
     TOKEN_NAME,
     TOKEN_LSHIFT,
     TOKEN_RSHIFT,
+    TOKEN_EXP,
 } TokenKind;
 
 typedef struct Token {
@@ -318,6 +319,17 @@ next_token() {
             }
         } break;
 
+        case '*': {
+            char c = *stream++;
+            char next = *stream;
+            if (next && next == c) {
+                token.kind = TOKEN_EXP;
+                ++stream;
+            } else {
+                token.kind = c;
+            }
+        } break;
+
         default: {
             token.kind = *stream++;
         } break;
@@ -345,6 +357,9 @@ print_token(Token token) {
         } break;
         case TOKEN_RSHIFT: {
             printf("TOKEN RSHIFT\n");
+        } break;
+        case TOKEN_EXP: {
+            printf("TOKEN EXPONENT\n");
         } break;
         default: {
             printf("TOKEN '%c'\n", token.kind);
@@ -392,7 +407,7 @@ expect_token(TokenKind kind) {
 
 internal void
 lex_test() {
-    char *source = "XY+(XY)1234+42_HELLO1,23+foo!Yeah...93<<8+8>>2";
+    char *source = "XY+(XY)1234+42_HELLO1,23+foo!Yeah...93<<8+8>>2+(2**4)";
     init_stream(source);
     assert_token_name("XY");
     assert_token('+');
@@ -419,6 +434,12 @@ lex_test() {
     assert_token_int(8);
     assert_token(TOKEN_RSHIFT);
     assert_token_int(2);
+    assert_token('+');
+    assert_token('(');
+    assert_token_int(2);
+    assert_token(TOKEN_EXP);
+    assert_token_int(4);
+    assert_token(')');
     assert_token_eof();
 }
 
@@ -441,7 +462,6 @@ i64 parse_expr();
 internal i64
 parse_factor() {
     i64 result;
-
     if (is_token(TOKEN_INT)) {
         printf("%llu", token.int_val);
         result = token.int_val;
@@ -462,6 +482,24 @@ parse_factor() {
 }
 
 internal i64
+parse_power() {
+    // Exponentiation binds very tightly, so 2 + 3**2 * 4 == 2 + ((3**2) * 4)
+    i64 result = parse_factor();
+    while (is_token(TOKEN_EXP)) {
+        printf("**");
+        next_token();
+        i64 power = parse_factor();
+        i64 base = result;
+        result = 1;
+        for (u64 i = 0; i < power; ++i) {
+            result *= base;
+        }
+    }
+
+    return result;
+}
+
+internal i64
 parse_unary() {
     // Right associative
     i64 result;
@@ -472,14 +510,16 @@ parse_unary() {
         i64 rval = parse_unary();
         if (op == '-') {
             result = -rval;
-        } else if (op == '~') {
+        }
+        else if (op == '~') {
             result = ~rval;
-        } else {
+        }
+        else {
             assert(op == '+');
             result = rval;
         }
     } else {
-        result = parse_factor();
+        result = parse_power();
     }
 
     return result;
@@ -489,28 +529,32 @@ internal i64
 parse_term() {
     // Left associative
     i64 result = parse_unary();
-    while (is_token('*') || is_token('/') || is_token(TOKEN_LSHIFT) || is_token(TOKEN_RSHIFT) ||
-           is_token('%') || is_token('&')) {
+    while (is_token('*') || is_token('/') || is_token('%') || is_token('&') ||
+           is_token(TOKEN_LSHIFT) || is_token(TOKEN_RSHIFT)) {
         TokenKind kind = token.kind;
         next_token();
-
         i64 rval = parse_unary();
         if (kind == TOKEN_LSHIFT) {
             result = result << rval;
-        } else if (kind == TOKEN_RSHIFT) {
+        }
+        else if (kind == TOKEN_RSHIFT) {
             result = result >> rval;
-        } else {
+        }
+        else {
             char op = kind;
             printf("%c", op);
 
             if (op == '*') {
                 result *= rval;
-            } else if (op == '/') {
+            }
+            else if (op == '/') {
                 assert(rval != 0);
                 result /= rval;
-            } else if (op == '%') {
+            }
+            else if (op == '%') {
                 result %= rval;
-            } else if (op == '&') {
+            }
+            else if (op == '&') {
                 result &= rval;
             }
         }
@@ -527,16 +571,18 @@ parse_expr() {
         char op = token.kind;
         printf("%c", op);
         next_token();
-
         i64 rval = parse_term();
         // Left-fold
         if (op == '+') {
             result += rval;
-        } else if (op == '-') {
+        }
+        else if (op == '-') {
             result -= rval;
-        } else if (op == '|') {
+        }
+        else if (op == '|') {
             result |= rval;
-        } else {
+        }
+        else {
             assert(op == '^');
             result ^= rval;
         }
@@ -597,6 +643,11 @@ parse_test() {
 
     assert_expr(2<<4);
     assert_expr(32>>2);
+
+    assert_expr_with_result(2**5, (2 * 2 * 2 * 2 * 2));
+    assert_expr_with_result(3+2**5*4, (3 + (2 * 2 * 2 * 2 * 2) * 4));
+    assert_expr_with_result(2**1, 2);
+    assert_expr_with_result(2**0, 1);
 
     // @improve Have a way to test for expected failures, such as a divide by 0.
     //assert_expr(1/0);
