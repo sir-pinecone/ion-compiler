@@ -114,13 +114,13 @@ _buf_grow(void *buf, size_t new_len, size_t elem_size) {
 
 internal void
 buf_test() {
-    s32 *buf = NULL;
+    i32 *buf = NULL;
     assert(buf_count(buf) == 0);
-    enum { N = 1024 };
-    for (u32 i = 0; i < N; i++) {
+    i32 n = 1024;
+    for (u32 i = 0; i < n; i++) {
         buf_push(buf, i);
     }
-    assert(buf_count(buf) == N);
+    assert(buf_count(buf) == n);
     for (u32 i = 0; i < buf_count(buf); i++) {
         assert(buf[i] == i);
     }
@@ -208,7 +208,7 @@ typedef struct Token {
     char *start;
     char *end;
     union {
-        s32 val;
+        i32 val;
         char *name; // Interned name for an identifier.
     };
 } Token;
@@ -267,7 +267,7 @@ next_token() {
     token.start = stream; // It may not be null-terminated!
     switch (*stream) {
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
-            s32 val = 0;
+            i32 val = 0;
             while(isdigit(*stream)) {
                 val *= 10; // Shifts everything over every time we see a new digit.
                 val += *stream++ - '0';
@@ -361,18 +361,17 @@ lex_test() {
 /* Grammar in order of precedence:
  *
  * factor = INT | '(' expr ')'
- * expr2  = [- + ~]expr2 | factor            (unary is right-associative)
- * expr1  = expr2 ([/ * % << >> &] expr2)*   (left-associative)
- * expr0  = expr1 ([+ - | ^] expr1)*         (left-associative)
- * expr   = expr0
+ * unary  = [- + ~]unary | factor            (unary is right-associative)
+ * term  = unary ([/ * % << >> &] unary)*   (left-associative)
+ * expr  = term ([+ - | ^] term)*         (left-associative)
  *
  */
 
-s32 parse_expr();
+i32 parse_expr();
 
-internal s32
+internal i32
 parse_factor() {
-    s32 result;
+    i32 result;
 
     if (is_token(TOKEN_INT)) {
         printf("%d", token.val);
@@ -393,15 +392,15 @@ parse_factor() {
     return result;
 }
 
-internal s32
-parse_expr2() {
+internal i32
+parse_unary() {
     // Right associative
-    s32 result;
+    i32 result;
     if (is_token('-') || is_token('+') || is_token('~')) {
         char op = token.kind;
         printf("%c", op);
         next_token();
-        s32 rval = parse_expr2();
+        i32 rval = parse_unary();
         if (op == '-') {
             result = -rval;
         } else if (op == '~') {
@@ -417,10 +416,10 @@ parse_expr2() {
     return result;
 }
 
-internal s32
-parse_expr1() {
+internal i32
+parse_term() {
     // Left associative
-    s32 result = parse_expr2();
+    i32 result = parse_unary();
     while (is_token('*') || is_token('/') || is_token('<') || is_token('>') ||
            is_token('%') || is_token('&')) {
         char op = token.kind;
@@ -438,7 +437,7 @@ parse_expr1() {
             }
         }
 
-        s32 rval = parse_expr2();
+        i32 rval = parse_unary();
         if (op == '*') {
             result *= rval;
         } else if (op == '/') {
@@ -459,16 +458,16 @@ parse_expr1() {
     return result;
 }
 
-internal s32
-parse_expr0() {
+internal i32
+parse_expr() {
     // Left associative
-    s32 result = parse_expr1();
+    i32 result = parse_term();
     while (is_token('+') || is_token('-') || is_token('|') || is_token('^')) {
         char op = token.kind;
         printf("%c", op);
         next_token();
 
-        s32 rval = parse_expr1();
+        i32 rval = parse_term();
         // Left-fold
         if (op == '+') {
             result += rval;
@@ -485,16 +484,11 @@ parse_expr0() {
     return result;
 }
 
-internal s32
-parse_expr() {
-    return parse_expr0();
-}
-
-inline s32
+inline i32
 parse_expr_str(char *str) {
     init_stream(str);
     printf("\nParse test for \"%s\":\n  ", str);
-    s32 result = parse_expr();
+    i32 result = parse_expr();
     printf(" = %d\n", result);
     return result;
 }
