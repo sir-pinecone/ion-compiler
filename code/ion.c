@@ -198,7 +198,8 @@ str_intern_test() {
 
 typedef enum TokenKind {
     TOKEN_EOF = 0,
-    TOKEN_INT = 128, // Reserve first 128 ascii values?
+    // Reserve first 128 ascii values for one-char tokens.
+    TOKEN_INT = 127,
     TOKEN_NAME,
     TOKEN_LSHIFT,
     TOKEN_RSHIFT,
