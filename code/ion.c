@@ -208,7 +208,7 @@ typedef struct Token {
     char *start;
     char *end;
     union {
-        i32 val;
+        u64 int_val;
         char *name; // Interned name for an identifier.
     };
 } Token;
@@ -270,13 +270,13 @@ next_token() {
     token.start = stream; // It may not be null-terminated!
     switch (*stream) {
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
-            i32 val = 0;
+            u64 val = 0;
             while(isdigit(*stream)) {
                 val *= 10; // Shifts everything over every time we see a new digit.
                 val += *stream++ - '0';
             }
             token.kind = TOKEN_INT;
-            token.val = val;
+            token.int_val = val;
         } break;
 
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i':
@@ -309,7 +309,7 @@ inline void
 print_token(Token token) {
     switch(token.kind) {
         case TOKEN_INT: {
-            printf("TOKEN INT: %d\n", token.val);
+            printf("TOKEN INT: %llu\n", token.int_val);
         } break;
         case TOKEN_NAME: {
             printf("TOKEN NAME: %.*s (intern &%p)\n", (int)(token.end - token.start), token.start, token.name);
@@ -355,7 +355,7 @@ expect_token(TokenKind kind) {
 
 #define assert_token(x) assert(match_token(x))
 #define assert_token_name(x) assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
-#define assert_token_int(x) assert(token.val == (x) && match_token(TOKEN_INT))
+#define assert_token_int(x) assert(token.int_val == (x) && match_token(TOKEN_INT))
 #define assert_token_eof() assert(is_token(0))
 
 internal void
@@ -405,8 +405,8 @@ parse_factor() {
     i32 result;
 
     if (is_token(TOKEN_INT)) {
-        printf("%d", token.val);
-        result = token.val;
+        printf("%llu", token.int_val);
+        result = token.int_val;
         next_token();
     }
     else if (match_token('(')) {
