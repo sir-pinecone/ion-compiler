@@ -213,25 +213,39 @@ typedef struct Token {
     };
 } Token;
 
-// @warning This returns a pointer to a static internal buffer, so it'll be overwritten next call.
-internal char *
-token_kind_name(TokenKind kind) {
-    static char buf[256];
+internal size_t
+copy_token_kind_str(char *dest, size_t dest_size, TokenKind kind) {
+    size_t copied = 0;
     switch(kind) {
+        case 0: {
+            copied = snprintf(dest, dest_size, "end of file");
+        } break;
+
         case TOKEN_INT: {
-            sprintf(buf, "integer");
+            copied = snprintf(dest, dest_size, "integer");
         } break;
+
         case TOKEN_NAME: {
-            sprintf(buf, "name");
+            copied = snprintf(dest, dest_size, "name");
         } break;
+
         default: {
             if (kind < 128 && isprint(kind)) {
-                sprintf(buf, "'%c'", kind);
+                copied = snprintf(dest, dest_size, "'%c'", kind);
             } else {
-                sprintf(buf, "<ASCII %d>", kind);
+                copied = snprintf(dest, dest_size, "<ASCII %d>", kind);
             }
         }
     }
+    return copied;
+}
+
+// @warning This returns a pointer to a static internal buffer, so it'll be overwritten next call.
+internal char *
+temp_token_kind_str(TokenKind kind) {
+    static char buf[256];
+    size_t n = copy_token_kind_str(buf, sizeof(buf), kind);
+    assert(n + 1 <= sizeof(buf)); // +1 for null terminator, which is not included in the snprintf return.
     return buf;
 }
 
@@ -343,7 +357,9 @@ expect_token(TokenKind kind) {
         next_token();
         return true;
     } else {
-        fatal("Expected token: %s, got %s", token_kind_name(kind), token_kind_name(token.kind));
+        char buf[256];
+        copy_token_kind_str(buf, sizeof(buf), kind);
+        fatal("Expected token %s, got %s instead", buf, temp_token_kind_str(token.kind));
         return false;
     }
 }
@@ -385,7 +401,7 @@ parse_factor() {
         printf(")");
     }
     else {
-        fatal("Expected integer or '(', got %s", token_kind_name(token.kind));
+        fatal("Expected integer or '(', got %s instead", temp_token_kind_str(token.kind));
         result = 0;
     }
 
@@ -426,13 +442,14 @@ parse_term() {
         printf("%c", op);
         next_token();
 
+        // @improve Move this logic into the lexer so that we can represent it with a token value instead.
         if (op == '<' || op == '>') {
             if (is_token(op)) {
                 printf("%c", op);
                 next_token();
             }
             else {
-                fatal("Expected token '%c', but got %s", op, token_kind_name(token.kind));
+                fatal("Expected token '%c', got %s instead", op, token_kind_str(token.kind));
                 return 0;
             }
         }
