@@ -364,24 +364,50 @@ expect_token(TokenKind kind) {
     }
 }
 
+#define assert_token(x) assert(match_token(x))
+#define assert_token_name(x) assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
+#define assert_token_int(x) assert(token.val == (x) && match_token(TOKEN_INT))
+#define assert_token_eof() assert(is_token(0))
+
 internal void
 lex_test() {
     char *source = "XY+(XY)1234+42_HELLO1,23+foo!Yeah...93";
     init_stream(source);
-    while (token.kind) {
-        //print_token(token);
-        next_token();
-    }
+    assert_token_name("XY");
+    assert_token('+');
+    assert_token('(');
+    assert_token_name("XY");
+    assert_token(')');
+    assert_token_int(1234);
+    assert_token('+');
+    assert_token_int(42);
+    assert_token_name("_HELLO1");
+    assert_token(',');
+    assert_token_int(23);
+    assert_token('+');
+    assert_token_name("foo");
+    assert_token('!');
+    assert_token_name("Yeah");
+    assert_token('.');
+    assert_token('.');
+    assert_token('.');
+    assert_token_int(93);
+    assert_token_eof();
 }
 
-/* Grammar in order of precedence:
- *
- * factor = INT | '(' expr ')'
- * unary  = [- + ~]unary | factor            (unary is right-associative)
- * term  = unary ([/ * % << >> &] unary)*   (left-associative)
- * expr  = term ([+ - | ^] term)*         (left-associative)
- *
- */
+#undef assert_token
+#undef assert_token_name
+#undef assert_token_int
+#undef assert_token_eof
+
+#if 0
+ // Grammar in order of precedence:
+
+  factor = INT | '(' expr ')'
+  unary  = [-+~]unary | factor         (unary is right-associative)
+  term   = unary ([*/%<<>>&] unary)*   (left-associative)
+  expr   = term ([+-|^] term)*         (left-associative)
+#endif
 
 i32 parse_expr();
 
