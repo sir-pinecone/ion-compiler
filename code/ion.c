@@ -252,17 +252,6 @@ temp_token_kind_str(TokenKind kind) {
 Token token;
 char *stream;
 
-char *keyword_if;
-char *keyword_for;
-char *keyword_while;
-
-internal void
-init_keywords() {
-    keyword_if = str_intern("if");
-    keyword_for = str_intern("for");
-    keyword_while = str_intern("while");
-}
-
 /*
  * The tokenizer uses a big switch statement because it's fast. The other way
  * of doing it would be using if statements to test if the byte is alphabetical
@@ -536,62 +525,66 @@ parse_expr_str(char *str) {
     return result;
 }
 
-#define TEST_EXPR(x, r) assert(parse_expr_str(#x) == (r))
+#define assert_expr(x) assert(parse_expr_str(#x) == (x))
+#define assert_expr_with_result(x, r) assert(parse_expr_str(#x) == (r))
 
 internal void
 parse_test() {
-    TEST_EXPR(1, 1);
-    TEST_EXPR(-5, -5);
-    TEST_EXPR((1), 1);
-    TEST_EXPR((1+2), 3);
-    TEST_EXPR(1-2-3, -4);
-    TEST_EXPR(2*3+4*5, 26);
-    TEST_EXPR(2*(3+4)*5, 70);
-    TEST_EXPR(2+-3, -1);
-    TEST_EXPR(-(3+8-2), -9);
-    TEST_EXPR((10/5)*((2-5)+(25/5)), 4);
+    assert_expr(1);
+    assert_expr(-5);
+    assert_expr((1));
+    assert_expr((1+2));
+    assert_expr(1-2-3);
+    assert_expr(2*3+4*5);
+    assert_expr(2*(3+4)*5);
+    assert_expr(2+-3);
+    assert_expr(-(3+8-2));
+    assert_expr((10/5)*((2-5)+(25/5)));
 
-    TEST_EXPR(-----3, -3);
-    TEST_EXPR(---(-3), 3);
+    assert_expr_with_result(-----3, -3);
+    assert_expr_with_result(---(-3), 3);
 
-    TEST_EXPR(+3, 3);
-    TEST_EXPR(-+3, -3);
-    TEST_EXPR(+-3, -3);
+    assert_expr(+3);
+    assert_expr(-+3);
+    assert_expr(+-3);
 
-    TEST_EXPR(~1, -2);
-    TEST_EXPR(~-2, 1);
-    TEST_EXPR(~0, -1);
+    assert_expr(~1);
+    assert_expr(~-2);
+    assert_expr(~0);
 
-    TEST_EXPR(2^10, 8);
-    TEST_EXPR(10^-4, -10);
-    TEST_EXPR(-10^-4, 10);
+    assert_expr(2^10);
+    assert_expr(10^-4);
+    assert_expr(-10^-4);
 
-    TEST_EXPR(2|10, 10);
-    TEST_EXPR(10|-4, -2);
-    TEST_EXPR(-10|-4, -2);
+    assert_expr(2|10);
+    assert_expr(10|-4);
+    assert_expr(-10|-4);
 
-    TEST_EXPR(8%3, 2);
-    TEST_EXPR(9%1, 0);
+    assert_expr(8%3);
+    assert_expr(9%1);
 
-    TEST_EXPR(22&12, 4);
-    TEST_EXPR(22&-4, 20);
+    assert_expr(22&12);
+    assert_expr(22&-4);
 
-    TEST_EXPR(2<<4, 32);
-    TEST_EXPR(32>>2, 8);
+    assert_expr(2<<4);
+    assert_expr(32>>2);
 
     // @improve Have a way to test for expected failures, such as a divide by 0.
-    //TEST_EXPR(1/0, 3);
+    //assert_expr(1/0);
 }
 
-#undef TEST_EXPR
+#undef assert_expr
+#undef assert_expr_with_result
 
-int main(int argc, char **argv) {
+internal void
+run_tests() {
     buf_test();
     lex_test();
     str_intern_test();
-    init_keywords();
-
     parse_test();
+}
 
+int main(int argc, char **argv) {
+    run_tests();
     return 0;
 }
