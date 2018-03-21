@@ -168,18 +168,19 @@ str_intern(char *str) {
 internal void
 str_intern_test() {
     char a[] = "hello";
+    assert(strcmp(a, str_intern(a)) == 0);
+    assert(str_intern(a) == str_intern(a));
+    assert(str_intern(str_intern(a)) == str_intern(a));
+
     char b[] = "hello";
     assert(a != b);
-    char *pa = str_intern(a);
-    char *pb = str_intern(b);
-    assert(pa == pb);
+    assert(str_intern(a) == str_intern(b));
 
-    char c[] = "foo";
-    assert(str_intern(c) != pa);
+    char c[] = "hello!";
+    assert(str_intern(a) != str_intern(c));
 
-    char d[] = "hello!";
-    char *pd = str_intern(d);
-    assert(pd != pa);
+    char d[] = "hell";
+    assert(str_intern(a) != str_intern(d));
 }
 
 typedef enum TokenKind {
