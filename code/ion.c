@@ -200,7 +200,8 @@ typedef enum TokenKind {
     TOKEN_EOF = 0,
     TOKEN_INT = 128, // Reserve first 128 ascii values?
     TOKEN_NAME,
-    // ...
+    TOKEN_LSHIFT,
+    TOKEN_RSHIFT,
 } TokenKind;
 
 typedef struct Token {
@@ -293,6 +294,29 @@ next_token() {
             token.kind = TOKEN_NAME;
             token.name = str_intern_range(token.start, stream);
         } break;
+
+        case '<': {
+            char c = *stream++;
+            char next = *stream;
+            if (next && next == c) {
+                token.kind = TOKEN_LSHIFT;
+                ++stream;
+            } else {
+                token.kind = c;
+            }
+        } break;
+
+        case '>': {
+            char c = *stream++;
+            char next = *stream;
+            if (next && next == c) {
+                token.kind = TOKEN_RSHIFT;
+                ++stream;
+            } else {
+                token.kind = c;
+            }
+        } break;
+
         default: {
             token.kind = *stream++;
         } break;
@@ -314,6 +338,12 @@ print_token(Token token) {
         } break;
         case TOKEN_NAME: {
             printf("TOKEN NAME: %.*s (intern &%p)\n", (int)(token.end - token.start), token.start, token.name);
+        } break;
+        case TOKEN_LSHIFT: {
+            printf("TOKEN LSHIFT\n");
+        } break;
+        case TOKEN_RSHIFT: {
+            printf("TOKEN RSHIFT\n");
         } break;
         default: {
             printf("TOKEN '%c'\n", token.kind);
@@ -361,7 +391,7 @@ expect_token(TokenKind kind) {
 
 internal void
 lex_test() {
-    char *source = "XY+(XY)1234+42_HELLO1,23+foo!Yeah...93";
+    char *source = "XY+(XY)1234+42_HELLO1,23+foo!Yeah...93<<8+8>>2";
     init_stream(source);
     assert_token_name("XY");
     assert_token('+');
@@ -382,6 +412,12 @@ lex_test() {
     assert_token('.');
     assert_token('.');
     assert_token_int(93);
+    assert_token(TOKEN_LSHIFT);
+    assert_token_int(8);
+    assert_token('+');
+    assert_token_int(8);
+    assert_token(TOKEN_RSHIFT);
+    assert_token_int(2);
     assert_token_eof();
 }
 
@@ -452,39 +488,30 @@ internal i32
 parse_term() {
     // Left associative
     i32 result = parse_unary();
-    while (is_token('*') || is_token('/') || is_token('<') || is_token('>') ||
+    while (is_token('*') || is_token('/') || is_token(TOKEN_LSHIFT) || is_token(TOKEN_RSHIFT) ||
            is_token('%') || is_token('&')) {
-        char op = token.kind;
-        printf("%c", op);
+        TokenKind kind = token.kind;
         next_token();
 
-        // @improve Move this logic into the lexer so that we can represent it with a token value instead.
-        if (op == '<' || op == '>') {
-            if (is_token(op)) {
-                printf("%c", op);
-                next_token();
-            }
-            else {
-                fatal("Expected token '%c', got %s instead", op, token_kind_str(token.kind));
-                return 0;
-            }
-        }
-
         i32 rval = parse_unary();
-        if (op == '*') {
-            result *= rval;
-        } else if (op == '/') {
-            assert(rval != 0);
-            result /= rval;
-        } else if (op == '%') {
-            result %= rval;
-        } else if (op == '&') {
-            result &= rval;
-        } else if (op == '<') {
+        if (kind == TOKEN_LSHIFT) {
             result = result << rval;
-        } else {
-            assert(op == '>');
+        } else if (kind == TOKEN_RSHIFT) {
             result = result >> rval;
+        } else {
+            char op = kind;
+            printf("%c", op);
+
+            if (op == '*') {
+                result *= rval;
+            } else if (op == '/') {
+                assert(rval != 0);
+                result /= rval;
+            } else if (op == '%') {
+                result %= rval;
+            } else if (op == '&') {
+                result &= rval;
+            }
         }
     }
 
