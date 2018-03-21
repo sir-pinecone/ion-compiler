@@ -197,6 +197,7 @@ str_intern_test() {
 }
 
 typedef enum TokenKind {
+    TOKEN_EOF = 0,
     TOKEN_INT = 128, // Reserve first 128 ascii values?
     TOKEN_NAME,
     // ...
@@ -217,7 +218,7 @@ internal size_t
 copy_token_kind_str(char *dest, size_t dest_size, TokenKind kind) {
     size_t copied = 0;
     switch(kind) {
-        case 0: {
+        case TOKEN_EOF: {
             copied = snprintf(dest, dest_size, "end of file");
         } break;
 
@@ -356,7 +357,7 @@ expect_token(TokenKind kind) {
 #define assert_token(x) assert(match_token(x))
 #define assert_token_name(x) assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
 #define assert_token_int(x) assert(token.int_val == (x) && match_token(TOKEN_INT))
-#define assert_token_eof() assert(is_token(0))
+#define assert_token_eof() assert(is_token(TOKEN_EOF))
 
 internal void
 lex_test() {
