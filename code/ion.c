@@ -42,7 +42,7 @@ xmalloc(size_t num_bytes) {
 }
 
 internal void
-Fatal(char *format, ...) {
+fatal(char *format, ...) {
     va_list args;
     va_start(args, format);
     // Unsafe for now, but we'll replace it with a stretchy buffer string builder eventually...
@@ -52,6 +52,8 @@ Fatal(char *format, ...) {
     va_end(args);
     exit(1);
 }
+
+// Stetchy buffers
 
 typedef struct BufHdr {
     size_t len;
@@ -64,17 +66,17 @@ typedef struct BufHdr {
 // some commas in the stretchy buffer macros and see that it breaks the
 // compiler.
 
-#define _BufHdr(b) ((BufHdr *)((char *)(b) - offsetof(BufHdr, buf)))
-#define _BufFits(b, n) (BufLen(b) + (n) <= BufCap(b))
-#define _BufFit(b, n) (_BufFits((b), (n)) ? 0 : ((b) = _BufGrow((b), BufLen(b) + (n), sizeof(*(b)))))
+#define _buf_hdr(b) ((BufHdr *)((char *)(b) - offsetof(BufHdr, buf)))
+#define _buf_fits(b, n) (buf_len(b) + (n) <= buf_cap(b))
+#define _buf_fit(b, n) (_buf_fits((b), (n)) ? 0 : ((b) = _buf_grow((b), buf_len(b) + (n), sizeof(*(b)))))
 
-#define BufLen(b) ((b) ? _BufHdr(b)->len : 0)
-#define BufCap(b) ((b) ? _BufHdr(b)->cap : 0)
-#define BufPush(b, ...) (_BufFit((b), 1), (b)[_BufHdr(b)->len++] = (__VA_ARGS__))
-#define BufFree(b) ((b) ? (free(_BufHdr(b)), (b) = NULL) : 0)
+#define buf_len(b) ((b) ? _buf_hdr(b)->len : 0)
+#define buf_cap(b) ((b) ? _buf_hdr(b)->cap : 0)
+#define buf_push(b, ...) (_buf_fit((b), 1), (b)[_buf_hdr(b)->len++] = (__VA_ARGS__))
+#define buf_free(b) ((b) ? (free(_buf_hdr(b)), (b) = NULL) : 0)
 
 internal void *
-_BufGrow(void *buf, size_t new_len, size_t elem_size) {
+_buf_grow(void *buf, size_t new_len, size_t elem_size) {
     // @document The regrowth strategy.
     //
     // From stream: How about using a buffer regrow factor of 1.5? It's
@@ -85,12 +87,12 @@ _BufGrow(void *buf, size_t new_len, size_t elem_size) {
     // the theoretical maximum amount that you want for the buffer and take
     // advantage of the fact that the kernel will not make pages resident until
     // you touch them (:
-    size_t new_cap = MAX(1 + 2 * BufCap(buf), new_len);
+    size_t new_cap = MAX(1 + 2 * buf_cap(buf), new_len);
     assert(new_len <= new_cap);
     size_t new_size = offsetof(BufHdr, buf) + new_cap * elem_size;
     BufHdr *new_hdr;
     if (buf) {
-        new_hdr = xrealloc(_BufHdr(buf), new_size);
+        new_hdr = xrealloc(_buf_hdr(buf), new_size);
     } else {
         new_hdr = xmalloc(new_size);
         new_hdr->len = 0;
@@ -100,20 +102,20 @@ _BufGrow(void *buf, size_t new_len, size_t elem_size) {
 }
 
 internal void
-BufTest() {
+buf_test() {
     s32 *buf = NULL;
-    assert(BufLen(buf) == 0);
+    assert(buf_len(buf) == 0);
     enum { N = 1024 };
     for (u32 i = 0; i < N; i++) {
-        BufPush(buf, i);
+        buf_push(buf, i);
     }
-    assert(BufLen(buf) == N);
-    for (u32 i = 0; i < BufLen(buf); i++) {
+    assert(buf_len(buf) == N);
+    for (u32 i = 0; i < buf_len(buf); i++) {
         assert(buf[i] == i);
     }
-    BufFree(buf);
+    buf_free(buf);
     assert(buf == NULL);
-    assert(BufLen(buf) == 0);
+    assert(buf_len(buf) == 0);
 }
 
 typedef struct InternStr {
@@ -133,12 +135,12 @@ global_variable InternStr *interns; // stretchy buf; static = initialized to 0 b
  */
 
 internal char *
-StrInternRange(char *start, char *end) {
+str_intern_range(char *start, char *end) {
     // Slower version that uses a stretchy buffer instead of a hash table. Can drop in a hash table
     // later since that's an implementation detail.
 
     size_t len = end - start;
-    for (size_t i = 0; i < BufLen(interns); ++i) {
+    for (size_t i = 0; i < buf_len(interns); ++i) {
         if ((interns[i].len == len) && strncmp(interns[i].str, start, len) == 0) {
             return interns[i].str;
         }
@@ -154,29 +156,29 @@ StrInternRange(char *start, char *end) {
     char *str = xmalloc(len + 1); // We want to store c-strings in the buffer, so +1 for null-terminator.
     memcpy(str, start, len);
     str[len] = 0;
-    BufPush(interns, (InternStr){len, str});
+    buf_push(interns, (InternStr){len, str});
     return str;
 }
 
 internal char *
-StrIntern(char *str) {
-    return StrInternRange(str, str + strlen(str));
+str_intern(char *str) {
+    return str_intern_range(str, str + strlen(str));
 }
 
 internal void
-StrInternTest() {
+str_intern_test() {
     char a[] = "hello";
     char b[] = "hello";
     assert(a != b);
-    char *pa = StrIntern(a);
-    char *pb = StrIntern(b);
+    char *pa = str_intern(a);
+    char *pb = str_intern(b);
     assert(pa == pb);
 
     char c[] = "foo";
-    assert(StrIntern(c) != pa);
+    assert(str_intern(c) != pa);
 
     char d[] = "hello!";
-    char *pd = StrIntern(d);
+    char *pd = str_intern(d);
     assert(pd != pa);
 }
 
@@ -199,7 +201,7 @@ typedef struct Token {
 
 // @warning This returns a pointer to a static internal buffer, so it'll be overwritten next call.
 internal char *
-TokenKindName(TokenKind kind) {
+token_kind_name(TokenKind kind) {
     static char buf[256];
     switch(kind) {
         case TOKEN_INT: {
@@ -227,10 +229,10 @@ char *keyword_for;
 char *keyword_while;
 
 internal void
-InitKeywords() {
-    keyword_if = StrIntern("if");
-    keyword_for = StrIntern("for");
-    keyword_while = StrIntern("while");
+init_keywords() {
+    keyword_if = str_intern("if");
+    keyword_for = str_intern("for");
+    keyword_while = str_intern("while");
 }
 
 /*
@@ -247,11 +249,10 @@ InitKeywords() {
 
 // e.g. 1234 (x+y) translates into '1234' '(' 'x' '+' 'y' ')'
 internal void
-NextToken() {
+next_token() {
     token.start = stream; // It may not be null-terminated!
     switch (*stream) {
-        case '0': case '1': case '2': case '3': case '4':
-        case '5': case '6': case '7': case '8': case '9': {
+        case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
             s32 val = 0;
             while(isdigit(*stream)) {
                 val *= 10; // Shifts everything over every time we see a new digit.
@@ -263,15 +264,16 @@ NextToken() {
 
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i':
         case 'j': case 'k': case 'l': case 'm': case 'n': case 'o': case 'p': case 'q': case 'r':
-        case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z': case 'A':
-        case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I': case 'J':
-        case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R': case 'S':
-        case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z': case '_': {
+        case 's': case 't': case 'u': case 'v': case 'w': case 'x': case 'y': case 'z':
+        case 'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': case 'H': case 'I':
+        case 'J': case 'K': case 'L': case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R':
+        case 'S': case 'T': case 'U': case 'V': case 'W': case 'X': case 'Y': case 'Z':
+        case '_': {
             while (isalnum(*stream) || *stream == '_') {
                 stream++;
             }
             token.kind = TOKEN_NAME;
-            token.name = StrInternRange(token.start, stream);
+            token.name = str_intern_range(token.start, stream);
         } break;
         default: {
             token.kind = *stream++;
@@ -281,13 +283,13 @@ NextToken() {
 }
 
 inline void
-InitStream(char *str) {
+init_stream(char *str) {
     stream = str;
-    NextToken();
+    next_token();
 }
 
 inline void
-PrintToken(Token token) {
+print_token(Token token) {
     switch(token.kind) {
         case TOKEN_INT: {
             printf("TOKEN INT: %d\n", token.val);
@@ -302,19 +304,19 @@ PrintToken(Token token) {
 }
 
 inline b32
-IsToken(TokenKind kind) {
+is_token(TokenKind kind) {
     return token.kind == kind;
 }
 
 inline b32
-IsTokenName(char *name) {
+is_token_name(char *name) {
     return token.kind == TOKEN_NAME && token.name == name;
 }
 
 inline b32
-MatchToken(TokenKind kind) {
-    if (IsToken(kind)) {
-        NextToken();
+match_token(TokenKind kind) {
+    if (is_token(kind)) {
+        next_token();
         return true;
     } else {
         return false;
@@ -322,55 +324,55 @@ MatchToken(TokenKind kind) {
 }
 
 inline b32
-ExpectToken(TokenKind kind) {
-    if (IsToken(kind)) {
-        NextToken();
+expect_token(TokenKind kind) {
+    if (is_token(kind)) {
+        next_token();
         return true;
     } else {
-        Fatal("Expected token: %s, got %s", TokenKindName(kind), TokenKindName(token.kind));
+        fatal("Expected token: %s, got %s", token_kind_name(kind), token_kind_name(token.kind));
         return false;
     }
 }
 
 internal void
-LexTest() {
+lex_test() {
     char *source = "XY+(XY)1234+42_HELLO1,23+foo!Yeah...93";
-    InitStream(source);
+    init_stream(source);
     while (token.kind) {
-        //PrintToken(token);
-        NextToken();
+        //print_token(token);
+        next_token();
     }
 }
 
 /* Grammar in order of precedence:
  *
- * expr3 = INT | '(' expr ')'
- * expr2 = [- + ~]expr2 | expr3             (unary is right-associative)
- * expr1 = expr2 ([/ * % << >> &] expr2)*   (left-associative)
- * expr0 = expr1 ([+ - | ^] expr1)*         (left-associative)
- * expr  = expr0
+ * factor = INT | '(' expr ')'
+ * expr2  = [- + ~]expr2 | factor            (unary is right-associative)
+ * expr1  = expr2 ([/ * % << >> &] expr2)*   (left-associative)
+ * expr0  = expr1 ([+ - | ^] expr1)*         (left-associative)
+ * expr   = expr0
  *
  */
 
-s32 ParseExpr();
+s32 parse_expr();
 
 internal s32
-ParseExpr3() {
+parse_factor() {
     s32 result;
 
-    if (IsToken(TOKEN_INT)) {
+    if (is_token(TOKEN_INT)) {
         printf("%d", token.val);
         result = token.val;
-        NextToken();
+        next_token();
     }
-    else if (MatchToken('(')) {
+    else if (match_token('(')) {
         printf("(");
-        result = ParseExpr();
-        ExpectToken(')');
+        result = parse_expr();
+        expect_token(')');
         printf(")");
     }
     else {
-        Fatal("Expected integer or '(', got %s", TokenKindName(token.kind));
+        fatal("Expected integer or '(', got %s", token_kind_name(token.kind));
         result = 0;
     }
 
@@ -378,14 +380,14 @@ ParseExpr3() {
 }
 
 internal s32
-ParseExpr2() {
+parse_expr2() {
     // Right associative
     s32 result;
-    if (IsToken('-') || IsToken('+') || IsToken('~')) {
+    if (is_token('-') || is_token('+') || is_token('~')) {
         char op = token.kind;
         printf("%c", op);
-        NextToken();
-        s32 rval = ParseExpr2();
+        next_token();
+        s32 rval = parse_expr2();
         if (op == '-') {
             result = -rval;
         } else if (op == '~') {
@@ -395,34 +397,34 @@ ParseExpr2() {
             result = rval;
         }
     } else {
-        result = ParseExpr3();
+        result = parse_factor();
     }
 
     return result;
 }
 
 internal s32
-ParseExpr1() {
+parse_expr1() {
     // Left associative
-    s32 result = ParseExpr2();
-    while (IsToken('*') || IsToken('/') || IsToken('<') || IsToken('>') ||
-           IsToken('%') || IsToken('&')) {
+    s32 result = parse_expr2();
+    while (is_token('*') || is_token('/') || is_token('<') || is_token('>') ||
+           is_token('%') || is_token('&')) {
         char op = token.kind;
         printf("%c", op);
-        NextToken();
+        next_token();
 
         if (op == '<' || op == '>') {
-            if (IsToken(op)) {
+            if (is_token(op)) {
                 printf("%c", op);
-                NextToken();
+                next_token();
             }
             else {
-                Fatal("Expected token '%c', but got %s", op, TokenKindName(token.kind));
+                fatal("Expected token '%c', but got %s", op, token_kind_name(token.kind));
                 return 0;
             }
         }
 
-        s32 rval = ParseExpr2();
+        s32 rval = parse_expr2();
         if (op == '*') {
             result *= rval;
         } else if (op == '/') {
@@ -444,15 +446,15 @@ ParseExpr1() {
 }
 
 internal s32
-ParseExpr0() {
+parse_expr0() {
     // Left associative
-    s32 result = ParseExpr1();
-    while (IsToken('+') || IsToken('-') || IsToken('|') || IsToken('^')) {
+    s32 result = parse_expr1();
+    while (is_token('+') || is_token('-') || is_token('|') || is_token('^')) {
         char op = token.kind;
         printf("%c", op);
-        NextToken();
+        next_token();
 
-        s32 rval = ParseExpr1();
+        s32 rval = parse_expr1();
         // Left-fold
         if (op == '+') {
             result += rval;
@@ -470,23 +472,23 @@ ParseExpr0() {
 }
 
 internal s32
-ParseExpr() {
-    return ParseExpr0();
+parse_expr() {
+    return parse_expr0();
 }
 
 inline s32
-ParseExprStr(char *str) {
-    InitStream(str);
+parse_expr_str(char *str) {
+    init_stream(str);
     printf("\nParse test for \"%s\":\n  ", str);
-    s32 result = ParseExpr();
+    s32 result = parse_expr();
     printf(" = %d\n", result);
     return result;
 }
 
-#define TEST_EXPR(x, r) assert(ParseExprStr(#x) == (r))
+#define TEST_EXPR(x, r) assert(parse_expr_str(#x) == (r))
 
 internal void
-ParseTest() {
+parse_test() {
     TEST_EXPR(1, 1);
     TEST_EXPR(-5, -5);
     TEST_EXPR((1), 1);
@@ -533,12 +535,12 @@ ParseTest() {
 #undef TEST_EXPR
 
 int main(int argc, char **argv) {
-    BufTest();
-    LexTest();
-    StrInternTest();
-    InitKeywords();
+    buf_test();
+    lex_test();
+    str_intern_test();
+    init_keywords();
 
-    ParseTest();
+    parse_test();
 
     return 0;
 }
