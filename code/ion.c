@@ -435,11 +435,11 @@ lex_test() {
   expr   = term ([+-|^] term)*         (left-associative)
 #endif
 
-i32 parse_expr();
+i64 parse_expr();
 
-internal i32
+internal i64
 parse_factor() {
-    i32 result;
+    i64 result;
 
     if (is_token(TOKEN_INT)) {
         printf("%llu", token.int_val);
@@ -460,15 +460,15 @@ parse_factor() {
     return result;
 }
 
-internal i32
+internal i64
 parse_unary() {
     // Right associative
-    i32 result;
+    i64 result;
     if (is_token('-') || is_token('+') || is_token('~')) {
         char op = token.kind;
         printf("%c", op);
         next_token();
-        i32 rval = parse_unary();
+        i64 rval = parse_unary();
         if (op == '-') {
             result = -rval;
         } else if (op == '~') {
@@ -484,16 +484,16 @@ parse_unary() {
     return result;
 }
 
-internal i32
+internal i64
 parse_term() {
     // Left associative
-    i32 result = parse_unary();
+    i64 result = parse_unary();
     while (is_token('*') || is_token('/') || is_token(TOKEN_LSHIFT) || is_token(TOKEN_RSHIFT) ||
            is_token('%') || is_token('&')) {
         TokenKind kind = token.kind;
         next_token();
 
-        i32 rval = parse_unary();
+        i64 rval = parse_unary();
         if (kind == TOKEN_LSHIFT) {
             result = result << rval;
         } else if (kind == TOKEN_RSHIFT) {
@@ -518,16 +518,16 @@ parse_term() {
     return result;
 }
 
-internal i32
+internal i64
 parse_expr() {
     // Left associative
-    i32 result = parse_term();
+    i64 result = parse_term();
     while (is_token('+') || is_token('-') || is_token('|') || is_token('^')) {
         char op = token.kind;
         printf("%c", op);
         next_token();
 
-        i32 rval = parse_term();
+        i64 rval = parse_term();
         // Left-fold
         if (op == '+') {
             result += rval;
@@ -544,12 +544,12 @@ parse_expr() {
     return result;
 }
 
-inline i32
+inline i64
 parse_expr_str(char *str) {
     init_stream(str);
     printf("\nParse test for \"%s\":\n  ", str);
-    i32 result = parse_expr();
-    printf(" = %d\n", result);
+    i64 result = parse_expr();
+    printf(" = %lld\n", result);
     return result;
 }
 
