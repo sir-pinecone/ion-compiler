@@ -94,7 +94,7 @@ _buf_grow(void *buf, size_t new_len, size_t elem_size) {
     // around to a small(er) value and that would be less than SIZE_MAX.
     assert(buf_cap(buf) <= (SIZE_MAX - 1) / 2);
 
-    size_t new_cap = MAX(1 + 2 * buf_cap(buf), new_len);
+    size_t new_cap = MAX(64, MAX(1 + 2 * buf_cap(buf), new_len));
     assert(new_len <= new_cap);
     assert(new_cap <= (SIZE_MAX - offsetof(BufHdr, buf)) / elem_size); // Overflow check.
 
