@@ -284,8 +284,16 @@ char *stream;
 // e.g. 1234 (x+y) translates into '1234' '(' 'x' '+' 'y' ')'
 internal void
 next_token() {
+repeat:
     token.start = stream; // It may not be null-terminated!
     switch (*stream) {
+        case ' ': case '\r': case '\n': case '\t': case '\v': {
+            while (isspace(*stream)) {
+                stream++;
+            }
+            goto repeat;
+        } break;
+
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
             u64 val = 0;
             while(isdigit(*stream)) {
@@ -420,7 +428,7 @@ expect_token(TokenKind kind) {
 
 internal void
 lex_test() {
-    init_stream("XY+(XY)1234+42_HELLO1,23+foo!Yeah...93<<8+8>>2+(2**4)");
+    init_stream("XY+(XY) 1234 + 42_HELLO1,23+foo!Yeah...93<<8+8>>2+(2**4)");
     assert_token_name("XY");
     assert_token('+');
     assert_token('(');
@@ -620,13 +628,13 @@ parse_test() {
     assert_expr(1);
     assert_expr(-5);
     assert_expr((1));
-    assert_expr((1+2));
-    assert_expr(1-2-3);
-    assert_expr(2*3+4*5);
-    assert_expr(2*(3+4)*5);
-    assert_expr(2+-3);
-    assert_expr(-(3+8-2));
-    assert_expr((10/5)*((2-5)+(25/5)));
+    assert_expr((1 + 2));
+    assert_expr(1 - 2 - 3);
+    assert_expr(2 * 3 + 4 *5);
+    assert_expr(2 * (3 + 4) * 5);
+    assert_expr(2 + -3);
+    assert_expr(-(3 + 8 - 2));
+    assert_expr((10 / 5) * ((2 - 5) + (25 / 5)));
 
     assert_expr_with_result(-----3, -3);
     assert_expr_with_result(---(-3), 3);
@@ -643,23 +651,23 @@ parse_test() {
     assert_expr(10^-4);
     assert_expr(-10^-4);
 
-    assert_expr(2|10);
-    assert_expr(10|-4);
-    assert_expr(-10|-4);
+    assert_expr(2 | 10);
+    assert_expr(10 | -4);
+    assert_expr(-10 | -4);
 
-    assert_expr(8%3);
-    assert_expr(9%1);
+    assert_expr(8 % 3);
+    assert_expr(9 % 1);
 
-    assert_expr(22&12);
-    assert_expr(22&-4);
+    assert_expr(22 & 12);
+    assert_expr(22 & -4);
 
-    assert_expr(2<<4);
-    assert_expr(32>>2);
+    assert_expr(2 << 4);
+    assert_expr(32 >> 2);
 
-    assert_expr_with_result(2**5, (2 * 2 * 2 * 2 * 2));
-    assert_expr_with_result(3+2**5*4, (3 + (2 * 2 * 2 * 2 * 2) * 4));
-    assert_expr_with_result(2**1, 2);
-    assert_expr_with_result(2**0, 1);
+    assert_expr_with_result(2 ** 5, (2 * 2 * 2 * 2 * 2));
+    assert_expr_with_result(3 + 2 ** 5 * 4, (3 + (2 * 2 * 2 * 2 * 2) * 4));
+    assert_expr_with_result(2 ** 1, 2);
+    assert_expr_with_result(2 ** 0, 1);
 
     // @improve Have a way to test for expected failures, such as a divide by 0.
     //assert_expr(1/0);
