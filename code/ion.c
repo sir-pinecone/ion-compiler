@@ -73,6 +73,7 @@ typedef struct BufHdr {
 #define buf_end(b) ((b) + buf_count(b))
 #define buf_fit(b, n) ((n) <= buf_cap(b) ? 0 : ((b) = _buf_grow((b), (n), sizeof(*(b)))))
 #define buf_push(b, ...) (buf_fit((b), 1 + buf_count(b)), (b)[_buf_hdr(b)->len++] = (__VA_ARGS__))
+#define buf_pop(b) ((b) ? (b)[--_buf_hdr(b)->len] : 0)
 #define buf_free(b) ((b) ? (free(_buf_hdr(b)), (b) = NULL) : 0)
 
 internal void *
@@ -126,6 +127,19 @@ buf_test() {
     buf_free(buf);
     assert(buf == NULL);
     assert(buf_count(buf) == 0);
+
+    for (u32 i = 1; i < n; i++) {
+        buf_push(buf, i);
+    }
+    i32 size = buf_count(buf);
+    for (i32 i = n - 1; i > 0; --i) {
+        i32 val = buf_pop(buf);
+        --size;
+        assert(val == i);
+        assert(size == buf_count(buf));
+    }
+    assert(buf_count(buf) == 0);
+    assert(buf_pop(buf) == 0);
 }
 
 typedef struct Intern {
