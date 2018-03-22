@@ -19,6 +19,7 @@
 #define global_variable static
 
 #define MAX(a, b) ((a) >= (b) ? (a) : (b))
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 
 internal void *
 xrealloc(void *ptr, size_t num_bytes) {
@@ -210,14 +211,117 @@ str_intern_test() {
 }
 
 typedef enum TokenKind {
-    TOKEN_EOF = 0,
-    // Reserve first 128 ascii values for one-char tokens.
-    TOKEN_INT = 127,
+    TOKEN_EOF,
+    TOKEN_COLON,
+    TOKEN_LPAREN,
+    TOKEN_RPAREN,
+    //TOKEN_LBRACE,
+    //TOKEN_RBRACE,
+    //TOKEN_LBRACKET,
+    //TOKEN_RBRACKET,
+    TOKEN_COMMA,
+    TOKEN_DOT,
+    //TOKEN_QUESTION,
+    //TOKEN_SEMICOLOR,
+    //TOKEN_KEYWORD,
+    TOKEN_INT,     // @improve Add i32 & i64 support.
+    //TOKEN_FLOAT,   // @improve Add f32 & f64 support.
+    //TOKEN_STR,
     TOKEN_NAME,
+    // Unary precedence
+    TOKEN_EXP,     // @question Want this still?
+    TOKEN_1COMP,
+    TOKEN_NOT,
+    // Multiplicative precedence
+    TOKEN_MUL,
+    TOKEN_DIV,
+    TOKEN_MOD,
+    TOKEN_BAND,
     TOKEN_LSHIFT,
     TOKEN_RSHIFT,
-    TOKEN_EXP,
+    // Additive precedence
+    TOKEN_ADD,
+    TOKEN_SUB,
+    TOKEN_XOR,
+    TOKEN_BOR,
+    // @incomplete Comparitive precedence
+    //TOKEN_EQ,
+    //TOKEN_NOT_EQ,
+    //TOKEN_LT,
+    //TOKEN_GT,
+    //TOKEN_LT_EQ
+    //TOKEN_GT_EQ
+    TOKEN_AND,
+    TOKEN_OR,
+    // @incomplete Assignment operators
+    //TOKEN_ASSIGN,
+    //TOKEN_ADD_ASSIGN,
+    //TOKEN_SUB_ASSIGN,
+    //TOKEN_OR_ASSIGN,
+    //TOKEN_AND_ASSIGN,
+    //TOKEN_XOR_ASSIGN,
+    //TOKEN_LSHIFT_ASSIGN,
+    //TOKEN_RSHIFT_ASSIGN,
+    //TOKEN_MUL_ASSIGN,
+    //TOKEN_DIV_ASSIGN,
+    //TOKEN_MOD_ASSIGN,
+    //TOKEN_INC,
+    //TOKEN_DEC,
+    //TOKEN_COLOR_ASSIGN
 } TokenKind;
+
+char *token_kind_names[] = {
+    [TOKEN_EOF] = "EOF",
+    [TOKEN_COLON] = ":",
+    [TOKEN_LPAREN] = "(",
+    [TOKEN_RPAREN] = ")",
+    //TOKEN_LBRACE,
+    //TOKEN_RBRACE,
+    //TOKEN_LBRACKET,
+    //TOKEN_RBRACKET,
+    [TOKEN_COMMA] = ",",
+    [TOKEN_DOT] = ".",
+    //TOKEN_QUESTION,
+    //TOKEN_SEMICOLOR,
+    //TOKEN_KEYWORD,
+    [TOKEN_INT] = "integer",
+    [TOKEN_NAME] = "name",
+    [TOKEN_EXP] = "**",
+    [TOKEN_1COMP] = "~",
+    [TOKEN_NOT] = "!",
+    [TOKEN_MUL] = "*",
+    [TOKEN_DIV] = "/",
+    [TOKEN_MOD] = "%",
+    [TOKEN_BAND] = "&",
+    [TOKEN_LSHIFT] = "<<",
+    [TOKEN_RSHIFT] = ">>",
+    [TOKEN_ADD] = "+",
+    [TOKEN_SUB] = "-",
+    [TOKEN_XOR] = "^",
+    [TOKEN_BOR] = "|",
+    //TOKEN_EQ,
+    //TOKEN_NOT_EQ,
+    //TOKEN_LT,
+    //TOKEN_GT,
+    //TOKEN_LT_EQ
+    //TOKEN_GT_EQ
+    [TOKEN_AND] = "&&",
+    [TOKEN_OR] = "||"
+    //TOKEN_ASSIGN,
+    //TOKEN_ADD_ASSIGN,
+    //TOKEN_SUB_ASSIGN,
+    //TOKEN_OR_ASSIGN,
+    //TOKEN_AND_ASSIGN,
+    //TOKEN_XOR_ASSIGN,
+    //TOKEN_LSHIFT_ASSIGN,
+    //TOKEN_RSHIFT_ASSIGN,
+    //TOKEN_MUL_ASSIGN,
+    //TOKEN_DIV_ASSIGN,
+    //TOKEN_MOD_ASSIGN,
+    //TOKEN_INC,
+    //TOKEN_DEC,
+    //TOKEN_COLOR_ASSIGN
+};
 
 typedef struct Token {
     TokenKind kind;
@@ -230,44 +334,35 @@ typedef struct Token {
     };
 } Token;
 
-internal size_t
-copy_token_kind_str(char *dest, size_t dest_size, TokenKind kind) {
-    size_t copied = 0;
-    switch(kind) {
-        case TOKEN_EOF: {
-            copied = snprintf(dest, dest_size, "end of file");
-        } break;
-
-        case TOKEN_INT: {
-            copied = snprintf(dest, dest_size, "integer");
-        } break;
-
-        case TOKEN_NAME: {
-            copied = snprintf(dest, dest_size, "name");
-        } break;
-
-        default: {
-            if (kind < 128 && isprint(kind)) {
-                copied = snprintf(dest, dest_size, "'%c'", kind);
-            } else {
-                copied = snprintf(dest, dest_size, "<ASCII %d>", kind);
-            }
-        }
-    }
-    return copied;
-}
+Token token;
+char *stream;
 
 // @warning This returns a pointer to a static internal buffer, so it'll be overwritten next call.
 internal char *
-temp_token_kind_str(TokenKind kind) {
-    static char buf[256];
-    size_t n = copy_token_kind_str(buf, sizeof(buf), kind);
-    assert(n + 1 <= sizeof(buf)); // +1 for null terminator, which is not included in the snprintf return.
-    return buf;
+token_kind_name(TokenKind kind) {
+    if (kind < ARRAY_COUNT(token_kind_names)) {
+        return token_kind_names[kind];
+    }
+    else {
+        return "<unknown>";
+    }
 }
 
-Token token;
-char *stream;
+internal char *
+token_info() {
+    if (token.kind == TOKEN_NAME) { // @incomplete token_keyword
+        return token.name;
+    }
+    else {
+        return token_kind_name(token.kind);
+    }
+}
+
+#define CASE1(c1, k1) \
+    case c1: {\
+        token.kind = k1; \
+        ++stream; \
+    } break;
 
 /*
  * The tokenizer uses a big switch statement because it's fast. The other way
@@ -319,39 +414,50 @@ repeat:
         } break;
 
         case '<': {
-            char c = *stream++;
-            char next = *stream;
-            if (next && next == c) {
+            token.kind = '<';
+            ++stream;
+            if (*stream == '<') {
                 token.kind = TOKEN_LSHIFT;
                 ++stream;
-            } else {
-                token.kind = c;
             }
         } break;
 
         case '>': {
-            char c = *stream++;
-            char next = *stream;
-            if (next && next == c) {
+           token.kind = '>';
+            ++stream;
+            if (*stream == '>') {
                 token.kind = TOKEN_RSHIFT;
                 ++stream;
-            } else {
-                token.kind = c;
             }
         } break;
 
         case '*': {
-            char c = *stream++;
-            char next = *stream;
-            if (next && next == c) {
+            token.kind = TOKEN_MUL;
+            ++stream;
+            if (*stream == '*') {
                 token.kind = TOKEN_EXP;
                 ++stream;
-            } else {
-                token.kind = c;
             }
         } break;
 
+        CASE1('\0', TOKEN_EOF)
+        CASE1(':', TOKEN_COLON)
+        CASE1('(', TOKEN_LPAREN)
+        CASE1(')', TOKEN_RPAREN)
+        CASE1(',', TOKEN_COMMA)
+        CASE1('.', TOKEN_DOT)
+        CASE1('~', TOKEN_1COMP)
+        CASE1('!', TOKEN_NOT)
+        CASE1('/', TOKEN_DIV)
+        CASE1('%', TOKEN_MOD)
+        CASE1('&', TOKEN_BAND)
+        CASE1('+', TOKEN_ADD)
+        CASE1('-', TOKEN_SUB)
+        CASE1('^', TOKEN_XOR)
+        CASE1('|', TOKEN_BOR)
+
         default: {
+            assert(0); // @incomplete Add a syntax_error call and a goto repeat;
             token.kind = *stream++;
         } break;
     }
@@ -414,9 +520,7 @@ expect_token(TokenKind kind) {
         next_token();
         return true;
     } else {
-        char buf[256];
-        copy_token_kind_str(buf, sizeof(buf), kind);
-        fatal("Expected token %s, got %s instead", buf, temp_token_kind_str(token.kind));
+        fatal("Expected token %s, got %s instead", token_kind_name(kind), token_info());
         return false;
     }
 }
@@ -428,38 +532,44 @@ expect_token(TokenKind kind) {
 
 internal void
 lex_test() {
-    init_stream("XY+(XY) 1234 + 42_HELLO1,23+foo!Yeah...93<<8+8>>2+(2**4)");
+    // Operator tests
+    init_stream("+ << :");
+    assert_token(TOKEN_ADD);
+    assert_token(TOKEN_LSHIFT);
+    assert_token(TOKEN_COLON);
+    assert_token_eof();
+
+    // Misc tests
+    init_stream("XY+(XY) 1234 - 42_HELLO1,23*foo!Yeah...93<<8+8>>2+2**4");
     assert_token_name("XY");
-    assert_token('+');
-    assert_token('(');
+    assert_token(TOKEN_ADD);
+    assert_token(TOKEN_LPAREN);
     assert_token_name("XY");
-    assert_token(')');
+    assert_token(TOKEN_RPAREN);
     assert_token_int(1234);
-    assert_token('+');
+    assert_token(TOKEN_SUB);
     assert_token_int(42);
     assert_token_name("_HELLO1");
-    assert_token(',');
+    assert_token(TOKEN_COMMA);
     assert_token_int(23);
-    assert_token('+');
+    assert_token(TOKEN_MUL);
     assert_token_name("foo");
-    assert_token('!');
+    assert_token(TOKEN_NOT);
     assert_token_name("Yeah");
-    assert_token('.');
-    assert_token('.');
-    assert_token('.');
+    assert_token(TOKEN_DOT);
+    assert_token(TOKEN_DOT);
+    assert_token(TOKEN_DOT);
     assert_token_int(93);
     assert_token(TOKEN_LSHIFT);
     assert_token_int(8);
-    assert_token('+');
+    assert_token(TOKEN_ADD);
     assert_token_int(8);
     assert_token(TOKEN_RSHIFT);
     assert_token_int(2);
-    assert_token('+');
-    assert_token('(');
+    assert_token(TOKEN_ADD);
     assert_token_int(2);
     assert_token(TOKEN_EXP);
     assert_token_int(4);
-    assert_token(')');
     assert_token_eof();
 }
 
@@ -487,17 +597,17 @@ parse_factor() {
         result = token.int_val;
         next_token();
     }
-    else if (match_token('(')) {
-        printf("(");
+    else if (match_token(TOKEN_LPAREN)) {
+        printf(token_kind_names[TOKEN_LPAREN]);
         result = parse_expr();
-        expect_token(')');
-        printf(")");
+        expect_token(TOKEN_RPAREN);
+        printf(token_kind_names[TOKEN_RPAREN]);
     }
     else {
-        fatal("Expected integer or '(', got %s instead", temp_token_kind_str(token.kind));
+        fatal("Expected integer or '%s', got %s instead",
+              token_kind_name(TOKEN_LPAREN), token_kind_name(token.kind));
         result = 0;
     }
-
     return result;
 }
 
@@ -506,7 +616,7 @@ parse_power() {
     // Exponentiation binds very tightly, so 2 + 3**2 * 4 == 2 + ((3**2) * 4)
     i64 result = parse_factor();
     while (is_token(TOKEN_EXP)) {
-        printf("**");
+        printf(token_kind_name(TOKEN_EXP));
         next_token();
         i64 power = parse_factor();
         i64 base = result;
@@ -515,7 +625,6 @@ parse_power() {
             result *= base;
         }
     }
-
     return result;
 }
 
@@ -523,25 +632,25 @@ internal i64
 parse_unary() {
     // Right associative
     i64 result;
-    if (is_token('-') || is_token('+') || is_token('~')) {
-        char op = token.kind;
-        printf("%c", op);
+    if (is_token(TOKEN_SUB) || is_token(TOKEN_ADD) || is_token(TOKEN_1COMP)) {
+        TokenKind op = token.kind;
+        printf(token_kind_name(op));
         next_token();
         i64 rval = parse_unary();
-        if (op == '-') {
+        if (op == TOKEN_SUB) {
             result = -rval;
         }
-        else if (op == '~') {
+        else if (op == TOKEN_1COMP) {
             result = ~rval;
         }
         else {
-            assert(op == '+');
+            assert(op == TOKEN_ADD);
             result = rval;
         }
-    } else {
+    }
+    else {
         result = parse_power();
     }
-
     return result;
 }
 
@@ -549,37 +658,34 @@ internal i64
 parse_term() {
     // Left associative
     i64 result = parse_unary();
-    while (is_token('*') || is_token('/') || is_token('%') || is_token('&') ||
+    while (is_token(TOKEN_MUL) || is_token(TOKEN_DIV) || is_token(TOKEN_MOD) || is_token(TOKEN_BAND) ||
            is_token(TOKEN_LSHIFT) || is_token(TOKEN_RSHIFT)) {
-        TokenKind kind = token.kind;
+        TokenKind op = token.kind;
         next_token();
         i64 rval = parse_unary();
-        if (kind == TOKEN_LSHIFT) {
+        if (op == TOKEN_LSHIFT) {
             result = result << rval;
         }
-        else if (kind == TOKEN_RSHIFT) {
+        else if (op == TOKEN_RSHIFT) {
             result = result >> rval;
         }
         else {
-            char op = kind;
-            printf("%c", op);
-
-            if (op == '*') {
+            printf(token_kind_name(op));
+            if (op == TOKEN_MUL) {
                 result *= rval;
             }
-            else if (op == '/') {
+            else if (op == TOKEN_DIV) {
                 assert(rval != 0);
                 result /= rval;
             }
-            else if (op == '%') {
+            else if (op == TOKEN_MOD) {
                 result %= rval;
             }
-            else if (op == '&') {
+            else if (op == TOKEN_BAND) {
                 result &= rval;
             }
         }
     }
-
     return result;
 }
 
@@ -587,27 +693,26 @@ internal i64
 parse_expr() {
     // Left associative
     i64 result = parse_term();
-    while (is_token('+') || is_token('-') || is_token('|') || is_token('^')) {
-        char op = token.kind;
-        printf("%c", op);
+    while (is_token(TOKEN_ADD) || is_token(TOKEN_SUB) || is_token(TOKEN_BOR) || is_token(TOKEN_XOR)) {
+        TokenKind op= token.kind;
+        printf(token_kind_name(op));
         next_token();
         i64 rval = parse_term();
         // Left-fold
-        if (op == '+') {
+        if (op == TOKEN_ADD) {
             result += rval;
         }
-        else if (op == '-') {
+        else if (op == TOKEN_SUB) {
             result -= rval;
         }
-        else if (op == '|') {
+        else if (op == TOKEN_BOR) {
             result |= rval;
         }
         else {
-            assert(op == '^');
+            assert(op == TOKEN_XOR);
             result ^= rval;
         }
     }
-
     return result;
 }
 
