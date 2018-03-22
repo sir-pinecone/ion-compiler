@@ -236,14 +236,14 @@ typedef enum TokenKind {
     TOKEN_MUL,
     TOKEN_DIV,
     TOKEN_MOD,
-    TOKEN_BAND,
+    TOKEN_AND,
     TOKEN_LSHIFT,
     TOKEN_RSHIFT,
     // Additive precedence
     TOKEN_ADD,
     TOKEN_SUB,
     TOKEN_XOR,
-    TOKEN_BOR,
+    TOKEN_OR,
     // @incomplete Comparitive precedence
     //TOKEN_EQ,
     //TOKEN_NOT_EQ,
@@ -251,8 +251,8 @@ typedef enum TokenKind {
     //TOKEN_GT,
     //TOKEN_LT_EQ
     //TOKEN_GT_EQ
-    TOKEN_AND,
-    TOKEN_OR,
+    TOKEN_AND_AND,
+    TOKEN_OR_OR,
     // @incomplete Assignment operators
     //TOKEN_ASSIGN,
     //TOKEN_ADD_ASSIGN,
@@ -292,21 +292,21 @@ char *token_kind_names[] = {
     [TOKEN_MUL] = "*",
     [TOKEN_DIV] = "/",
     [TOKEN_MOD] = "%",
-    [TOKEN_BAND] = "&",
+    [TOKEN_AND] = "&",
     [TOKEN_LSHIFT] = "<<",
     [TOKEN_RSHIFT] = ">>",
     [TOKEN_ADD] = "+",
     [TOKEN_SUB] = "-",
     [TOKEN_XOR] = "^",
-    [TOKEN_BOR] = "|",
+    [TOKEN_OR] = "|",
     //TOKEN_EQ,
     //TOKEN_NOT_EQ,
     //TOKEN_LT,
     //TOKEN_GT,
     //TOKEN_LT_EQ
     //TOKEN_GT_EQ
-    [TOKEN_AND] = "&&",
-    [TOKEN_OR] = "||"
+    [TOKEN_AND_AND] = "&&",
+    [TOKEN_OR_OR] = "||"
     //TOKEN_ASSIGN,
     //TOKEN_ADD_ASSIGN,
     //TOKEN_SUB_ASSIGN,
@@ -450,11 +450,11 @@ repeat:
         CASE1('!', TOKEN_NOT)
         CASE1('/', TOKEN_DIV)
         CASE1('%', TOKEN_MOD)
-        CASE1('&', TOKEN_BAND)
+        CASE1('&', TOKEN_AND)
         CASE1('+', TOKEN_ADD)
         CASE1('-', TOKEN_SUB)
         CASE1('^', TOKEN_XOR)
-        CASE1('|', TOKEN_BOR)
+        CASE1('|', TOKEN_OR)
 
         default: {
             assert(0); // @incomplete Add a syntax_error call and a goto repeat;
@@ -658,7 +658,7 @@ internal i64
 parse_term() {
     // Left associative
     i64 result = parse_unary();
-    while (is_token(TOKEN_MUL) || is_token(TOKEN_DIV) || is_token(TOKEN_MOD) || is_token(TOKEN_BAND) ||
+    while (is_token(TOKEN_MUL) || is_token(TOKEN_DIV) || is_token(TOKEN_MOD) || is_token(TOKEN_AND) ||
            is_token(TOKEN_LSHIFT) || is_token(TOKEN_RSHIFT)) {
         TokenKind op = token.kind;
         next_token();
@@ -681,7 +681,7 @@ parse_term() {
             else if (op == TOKEN_MOD) {
                 result %= rval;
             }
-            else if (op == TOKEN_BAND) {
+            else if (op == TOKEN_AND) {
                 result &= rval;
             }
         }
@@ -693,7 +693,7 @@ internal i64
 parse_expr() {
     // Left associative
     i64 result = parse_term();
-    while (is_token(TOKEN_ADD) || is_token(TOKEN_SUB) || is_token(TOKEN_BOR) || is_token(TOKEN_XOR)) {
+    while (is_token(TOKEN_ADD) || is_token(TOKEN_SUB) || is_token(TOKEN_OR) || is_token(TOKEN_XOR)) {
         TokenKind op= token.kind;
         printf(token_kind_name(op));
         next_token();
@@ -705,7 +705,7 @@ parse_expr() {
         else if (op == TOKEN_SUB) {
             result -= rval;
         }
-        else if (op == TOKEN_BOR) {
+        else if (op == TOKEN_OR) {
             result |= rval;
         }
         else {
