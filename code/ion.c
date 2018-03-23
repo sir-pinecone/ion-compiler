@@ -398,6 +398,67 @@ token_info() {
         ++stream; \
     } break;
 
+char char_to_digit[256] = {
+    ['0'] = 0,
+    ['1'] = 1,
+    ['2'] = 2,
+    ['3'] = 3,
+    ['4'] = 4,
+    ['5'] = 5,
+    ['6'] = 6,
+    ['7'] = 7,
+    ['8'] = 8,
+    ['9'] = 9,
+    ['a'] = 10, ['A'] = 10,
+    ['b'] = 11, ['B'] = 11,
+    ['c'] = 12, ['C'] = 12,
+    ['d'] = 13, ['D'] = 13,
+    ['e'] = 14, ['E'] = 14,
+    ['f'] = 15, ['F'] = 15,
+};
+
+internal u64
+scan_int() {
+    u64 base = 10;
+    if (*stream == '0') {
+        ++stream;
+        if (*stream) {
+            if (tolower(*stream) == 'x') {
+                ++stream;
+                base = 16;
+            }
+            else {
+                syntax_error("Invalid integer literal suffix '%c'.", *stream);
+                ++stream;
+            }
+        }
+    }
+
+    u64 result = 0;
+    for (;;) {
+        u64 digit = char_to_digit[*stream];
+
+        if (digit == 0 && *stream != '0') break;
+        if (digit >= base) {
+            fatal_syntax_error("Digit '%c' out of range for base %llu", *stream, base);
+            digit = 0;
+        }
+
+        ++stream;
+        if (result > (UINT64_MAX - digit) / base) {
+            syntax_error("Integer literal overflow");
+            while (digit = char_to_digit[*stream] && (digit != 0 || *stream != '0')) {
+                ++stream;
+            }
+            result = 0;
+        }
+        else {
+            result = result * base + digit;
+        }
+    }
+    return result;
+}
+
 /*
  * The tokenizer uses a big switch statement because it's fast. The other way
  * of doing it would be using if statements to test if the byte is alphabetical
@@ -424,20 +485,8 @@ repeat:
         } break;
 
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
-            u64 val = 0;
-            while(isdigit(*stream)) {
-                u64 digit = *stream++ - '0';
-                if (val > (UINT64_MAX - digit) / 10) {
-                    syntax_error("Integer literal overflow");
-                    while (isdigit(*stream)) {
-                        ++stream;
-                    }
-                    val = 0;
-                }
-                val = val * 10 + digit;
-            }
             token.kind = TOKEN_INT;
-            token.int_val = val;
+            token.int_val = scan_int();
         } break;
 
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i':
@@ -621,6 +670,17 @@ lex_test() {
     // Verify that UINT64_MAX doesn't trigger an overflow.
     init_stream("18446744073709551615");
     assert_token_int(18446744073709551615ULL);
+    assert_token_eof();
+
+    // Hex tests
+    // Verify that UINT64_MAX doesn't trigger an overflow.
+    init_stream("0xFFFFFFFFFFFFFFFF 0x8 0xF 0x5Cf9A 0XA 0x0000000004");
+    assert_token_int(18446744073709551615ULL);
+    assert_token_int(8);
+    assert_token_int(15);
+    assert_token_int(380826);
+    assert_token_int(10);
+    assert_token_int(4);
     assert_token_eof();
 }
 
