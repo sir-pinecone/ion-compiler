@@ -425,10 +425,13 @@ scan_int() {
         if (*stream) {
             if (tolower(*stream) == 'x') {
                 ++stream;
-                base = 16;
+                base = 16; // Hex.
+            }
+            else if (isdigit(*stream)) {
+                base = 8; // Octal.
             }
             else {
-                syntax_error("Invalid integer literal suffix '%c'.", *stream);
+                syntax_error("Invalid integer literal suffix '%c'!", *stream);
                 ++stream;
             }
         }
@@ -440,13 +443,13 @@ scan_int() {
 
         if (digit == 0 && *stream != '0') break;
         if (digit >= base) {
-            fatal_syntax_error("Digit '%c' out of range for base %llu", *stream, base);
+            fatal_syntax_error("Digit '%c' out of range for base %llu!", *stream, base);
             digit = 0;
         }
 
         ++stream;
         if (result > (UINT64_MAX - digit) / base) {
-            syntax_error("Integer literal overflow");
+            syntax_error("Integer literal overflow!");
             while (digit = char_to_digit[*stream] && (digit != 0 || *stream != '0')) {
                 ++stream;
             }
@@ -547,7 +550,7 @@ repeat:
         CASE1('|', TOKEN_OR)
 
         default: {
-            syntax_error("Unrecognized stream character: %c", *stream);
+            syntax_error("Unrecognized stream character: %c!", *stream);
             goto repeat;
         } break;
     }
@@ -669,18 +672,27 @@ lex_test() {
     // Integer tests
     // Verify that UINT64_MAX doesn't trigger an overflow.
     init_stream("18446744073709551615");
-    assert_token_int(18446744073709551615ULL);
+    assert_token_int(18446744073709551615ull);
     assert_token_eof();
 
     // Hex tests
     // Verify that UINT64_MAX doesn't trigger an overflow.
     init_stream("0xFFFFFFFFFFFFFFFF 0x8 0xF 0x5Cf9A 0XA 0x0000000004");
-    assert_token_int(18446744073709551615ULL);
+    assert_token_int(18446744073709551615ull);
     assert_token_int(8);
     assert_token_int(15);
     assert_token_int(380826);
     assert_token_int(10);
     assert_token_int(4);
+    assert_token_eof();
+
+    // Octal tests
+    // Verify that UINT64_MAX doesn't trigger an overflow.
+    init_stream("01777777777777777777777 010 01234567 000001");
+    assert_token_int(18446744073709551615ull);
+    assert_token_int(8);
+    assert_token_int(342391);
+    assert_token_int(1);
     assert_token_eof();
 }
 
