@@ -54,7 +54,33 @@ fatal(char *format, ...) {
     exit(1);
 }
 
+internal void
+syntax_error(char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    // Unsafe for now, but we'll replace it with a stretchy buffer string builder eventually...
+    printf("Syntax Error: ");
+    vprintf(format, args);
+    printf("\n");
+    va_end(args);
+    fflush(stdout);
+}
+
+internal void
+fatal_syntax_error(char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    // Unsafe for now, but we'll replace it with a stretchy buffer string builder eventually...
+    printf("Fatal Syntax Error: ");
+    vprintf(format, args);
+    printf("\n");
+    va_end(args);
+    exit(1);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // Stetchy buffers
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 typedef struct BufHdr {
     size_t len;
@@ -143,6 +169,10 @@ buf_test() {
     assert(buf_pop(buf) == 0);
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// String Interning
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 typedef struct Intern {
     size_t len;
     char *str;
@@ -209,6 +239,10 @@ str_intern_test() {
     char d[] = "hell";
     assert(str_intern(a) != str_intern(d));
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Lexer
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 typedef enum TokenKind {
     TOKEN_EOF,
@@ -392,8 +426,15 @@ repeat:
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
             u64 val = 0;
             while(isdigit(*stream)) {
-                val *= 10; // Shifts everything over every time we see a new digit.
-                val += *stream++ - '0';
+                u64 digit = *stream++ - '0';
+                if (val > (UINT64_MAX - digit) / 10) {
+                    syntax_error("Integer literal overflow");
+                    while (isdigit(*stream)) {
+                        ++stream;
+                    }
+                    val = 0;
+                }
+                val = val * 10 + digit;
             }
             token.kind = TOKEN_INT;
             token.int_val = val;
@@ -457,8 +498,8 @@ repeat:
         CASE1('|', TOKEN_OR)
 
         default: {
-            assert(0); // @incomplete Add a syntax_error call and a goto repeat;
-            token.kind = *stream++;
+            syntax_error("Unrecognized stream character: %c", *stream);
+            goto repeat;
         } break;
     }
     token.end = stream;
@@ -494,6 +535,10 @@ print_token(Token token) {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Parser
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 inline b32
 is_token(TokenKind kind) {
     return token.kind == kind;
@@ -525,10 +570,10 @@ expect_token(TokenKind kind) {
     }
 }
 
-#define assert_token(x) assert(match_token(x))
+#define assert_token(x)      assert(match_token(x))
 #define assert_token_name(x) assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
-#define assert_token_int(x) assert(token.int_val == (x) && match_token(TOKEN_INT))
-#define assert_token_eof() assert(is_token(TOKEN_EOF))
+#define assert_token_int(x)  assert(token.int_val == (x) && match_token(TOKEN_INT))
+#define assert_token_eof()   assert(is_token(TOKEN_EOF))
 
 internal void
 lex_test() {
@@ -570,6 +615,12 @@ lex_test() {
     assert_token_int(2);
     assert_token(TOKEN_EXP);
     assert_token_int(4);
+    assert_token_eof();
+
+    // Integer tests
+    // Verify that UINT64_MAX doesn't trigger an overflow.
+    init_stream("18446744073709551615");
+    assert_token_int(18446744073709551615ULL);
     assert_token_eof();
 }
 
