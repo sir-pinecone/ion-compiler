@@ -427,6 +427,10 @@ scan_int() {
                 ++stream;
                 base = 16; // Hex.
             }
+            else if (tolower(*stream) == 'b') {
+                ++stream;
+                base = 2;
+            }
             else if (isdigit(*stream)) {
                 base = 8; // Octal.
             }
@@ -669,16 +673,18 @@ lex_test() {
     assert_token_int(4);
     assert_token_eof();
 
+    //
     // Integer tests
-    // Verify that UINT64_MAX doesn't trigger an overflow.
+    //
+
+    // Decimals
     init_stream("18446744073709551615");
-    assert_token_int(18446744073709551615ull);
+    assert_token_int(18446744073709551615ull); // Verify that UINT64_MAX doesn't trigger an overflow.
     assert_token_eof();
 
-    // Hex tests
-    // Verify that UINT64_MAX doesn't trigger an overflow.
+    // Hex
     init_stream("0xFFFFFFFFFFFFFFFF 0x8 0xF 0x5Cf9A 0XA 0x0000000004");
-    assert_token_int(18446744073709551615ull);
+    assert_token_int(18446744073709551615ull); // Verify that UINT64_MAX doesn't trigger an overflow.
     assert_token_int(8);
     assert_token_int(15);
     assert_token_int(380826);
@@ -686,13 +692,20 @@ lex_test() {
     assert_token_int(4);
     assert_token_eof();
 
-    // Octal tests
-    // Verify that UINT64_MAX doesn't trigger an overflow.
+    // Octal
     init_stream("01777777777777777777777 010 01234567 000001");
-    assert_token_int(18446744073709551615ull);
+    assert_token_int(18446744073709551615ull); // Verify that UINT64_MAX doesn't trigger an overflow.
     assert_token_int(8);
     assert_token_int(342391);
     assert_token_int(1);
+    assert_token_eof();
+
+    // Binary
+    init_stream("0b1111111111111111111111111111111111111111111111111111111111111111 0b0001 0b10000 0b01101");
+    assert_token_int(18446744073709551615ull); // Verify that UINT64_MAX doesn't trigger an overflow.
+    assert_token_int(1);
+    assert_token_int(16);
+    assert_token_int(13);
     assert_token_eof();
 }
 
