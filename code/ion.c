@@ -249,17 +249,17 @@ typedef enum TokenKind {
     TOKEN_COLON,
     TOKEN_LPAREN,
     TOKEN_RPAREN,
-    //TOKEN_LBRACE,
-    //TOKEN_RBRACE,
-    //TOKEN_LBRACKET,
-    //TOKEN_RBRACKET,
+    TOKEN_LBRACE,
+    TOKEN_RBRACE,
+    TOKEN_LBRACKET,
+    TOKEN_RBRACKET,
     TOKEN_COMMA,
     TOKEN_DOT,
-    //TOKEN_QUESTION,
-    //TOKEN_SEMICOLOR,
-    //TOKEN_KEYWORD,
+    TOKEN_QUESTION,
+    TOKEN_SEMICOLON,
+    // TOKEN_KEYWORD,
     TOKEN_INT,     // @improve Add i32 & i64 support.
-    //TOKEN_FLOAT,   // @improve Add f32 & f64 support.
+    TOKEN_FLOAT,   // @improve Add f32 & f64 support.
     //TOKEN_STR,
     TOKEN_NAME,
     // Unary precedence
@@ -278,83 +278,84 @@ typedef enum TokenKind {
     TOKEN_SUB,
     TOKEN_XOR,
     TOKEN_OR,
-    // @incomplete Comparitive precedence
-    //TOKEN_EQ,
-    //TOKEN_NOT_EQ,
-    //TOKEN_LT,
-    //TOKEN_GT,
-    //TOKEN_LT_EQ
-    //TOKEN_GT_EQ
+    // @incomplete Comparitative precedence
+    TOKEN_EQ,
+    TOKEN_NOT_EQ,
+    TOKEN_LT,
+    TOKEN_GT,
+    TOKEN_LT_EQ,
+    TOKEN_GT_EQ,
     TOKEN_AND_AND,
     TOKEN_OR_OR,
     // @incomplete Assignment operators
-    //TOKEN_ASSIGN,
-    //TOKEN_ADD_ASSIGN,
-    //TOKEN_SUB_ASSIGN,
-    //TOKEN_OR_ASSIGN,
-    //TOKEN_AND_ASSIGN,
-    //TOKEN_XOR_ASSIGN,
-    //TOKEN_LSHIFT_ASSIGN,
-    //TOKEN_RSHIFT_ASSIGN,
-    //TOKEN_MUL_ASSIGN,
-    //TOKEN_DIV_ASSIGN,
-    //TOKEN_MOD_ASSIGN,
-    //TOKEN_INC,
-    //TOKEN_DEC,
-    //TOKEN_COLOR_ASSIGN
+    TOKEN_ASSIGN,
+    TOKEN_ADD_ASSIGN,
+    TOKEN_SUB_ASSIGN,
+    TOKEN_OR_ASSIGN,
+    TOKEN_AND_ASSIGN,
+    TOKEN_XOR_ASSIGN,
+    TOKEN_LSHIFT_ASSIGN,
+    TOKEN_RSHIFT_ASSIGN,
+    TOKEN_MUL_ASSIGN,
+    TOKEN_DIV_ASSIGN,
+    TOKEN_MOD_ASSIGN,
+    TOKEN_INC,
+    TOKEN_DEC,
+    TOKEN_COLON_ASSIGN
 } TokenKind;
 
 char *token_kind_names[] = {
-    [TOKEN_EOF] = "EOF",
-    [TOKEN_COLON] = ":",
-    [TOKEN_LPAREN] = "(",
-    [TOKEN_RPAREN] = ")",
-    //TOKEN_LBRACE,
-    //TOKEN_RBRACE,
-    //TOKEN_LBRACKET,
-    //TOKEN_RBRACKET,
-    [TOKEN_COMMA] = ",",
-    [TOKEN_DOT] = ".",
-    //TOKEN_QUESTION,
-    //TOKEN_SEMICOLOR,
-    //TOKEN_KEYWORD,
-    [TOKEN_INT] = "integer",
-    [TOKEN_NAME] = "name",
-    [TOKEN_EXP] = "**",
-    [TOKEN_1COMP] = "~",
-    [TOKEN_NOT] = "!",
-    [TOKEN_MUL] = "*",
-    [TOKEN_DIV] = "/",
-    [TOKEN_MOD] = "%",
-    [TOKEN_AND] = "&",
-    [TOKEN_LSHIFT] = "<<",
-    [TOKEN_RSHIFT] = ">>",
-    [TOKEN_ADD] = "+",
-    [TOKEN_SUB] = "-",
-    [TOKEN_XOR] = "^",
-    [TOKEN_OR] = "|",
-    //TOKEN_EQ,
-    //TOKEN_NOT_EQ,
-    //TOKEN_LT,
-    //TOKEN_GT,
-    //TOKEN_LT_EQ
-    //TOKEN_GT_EQ
-    [TOKEN_AND_AND] = "&&",
-    [TOKEN_OR_OR] = "||"
-    //TOKEN_ASSIGN,
-    //TOKEN_ADD_ASSIGN,
-    //TOKEN_SUB_ASSIGN,
-    //TOKEN_OR_ASSIGN,
-    //TOKEN_AND_ASSIGN,
-    //TOKEN_XOR_ASSIGN,
-    //TOKEN_LSHIFT_ASSIGN,
-    //TOKEN_RSHIFT_ASSIGN,
-    //TOKEN_MUL_ASSIGN,
-    //TOKEN_DIV_ASSIGN,
-    //TOKEN_MOD_ASSIGN,
-    //TOKEN_INC,
-    //TOKEN_DEC,
-    //TOKEN_COLOR_ASSIGN
+    [TOKEN_EOF]           = "EOF",
+    [TOKEN_COLON]         = ":",
+    [TOKEN_LPAREN]        = "(",
+    [TOKEN_RPAREN]        = ")",
+    [TOKEN_LBRACE]        = "{",
+    [TOKEN_RBRACE]        = "}",
+    [TOKEN_LBRACKET]      = "[",
+    [TOKEN_RBRACKET]      = "]",
+    [TOKEN_COMMA]         = ",",
+    [TOKEN_DOT]           = ".",
+    [TOKEN_QUESTION]      = "?",
+    [TOKEN_SEMICOLON]     = ";",
+    //[TOKEN_KEYWORD]     = ???
+    [TOKEN_INT]           = "integer",
+    [TOKEN_FLOAT]         = "float",
+    [TOKEN_NAME]          = "name",
+    [TOKEN_EXP]           = "**",
+    [TOKEN_1COMP]         = "~",
+    [TOKEN_NOT]           = "!",
+    [TOKEN_MUL]           = "*",
+    [TOKEN_DIV]           = "/",
+    [TOKEN_MOD]           = "%",
+    [TOKEN_AND]           = "&",
+    [TOKEN_LSHIFT]        = "<<",
+    [TOKEN_RSHIFT]        = ">>",
+    [TOKEN_ADD]           = "+",
+    [TOKEN_SUB]           = "-",
+    [TOKEN_XOR]           = "^",
+    [TOKEN_OR]            = "|",
+    [TOKEN_EQ]            = "==",
+    [TOKEN_NOT_EQ]        = "! =",
+    [TOKEN_LT]            = "<",
+    [TOKEN_GT]            = ">",
+    [TOKEN_LT_EQ]         = "<=",
+    [TOKEN_GT_EQ]         = ">=",
+    [TOKEN_AND_AND]       = "&&",
+    [TOKEN_OR_OR]         = "||",
+    [TOKEN_ASSIGN]        = "=",
+    [TOKEN_ADD_ASSIGN]    = "+=",
+    [TOKEN_SUB_ASSIGN]    = "-=",
+    [TOKEN_OR_ASSIGN]     = "|=",
+    [TOKEN_AND_ASSIGN]    = "&=",
+    [TOKEN_XOR_ASSIGN]    = "^=",
+    [TOKEN_LSHIFT_ASSIGN] = "<<=",
+    [TOKEN_RSHIFT_ASSIGN] = ">>=",
+    [TOKEN_MUL_ASSIGN]    = "*=",
+    [TOKEN_DIV_ASSIGN]    = "/=",
+    [TOKEN_MOD_ASSIGN]    = "%=",
+    [TOKEN_INC]           = "++",
+    [TOKEN_DEC]           = "--",
+    [TOKEN_COLON_ASSIGN]  = ":=",
 };
 
 typedef struct Token {
@@ -364,6 +365,7 @@ typedef struct Token {
     char *end;
     union {
         u64 int_val;
+        f64 float_val;
         char *name; // Interned name for an identifier.
     };
 } Token;
@@ -466,6 +468,13 @@ scan_int() {
     return result;
 }
 
+internal f64
+scan_float() {
+    f64 result = 0.0f;
+    return result;
+}
+
+
 /*
  * The tokenizer uses a big switch statement because it's fast. The other way
  * of doing it would be using if statements to test if the byte is alphabetical
@@ -491,9 +500,25 @@ repeat:
             goto repeat;
         } break;
 
+        case '.': {
+            token.kind = TOKEN_FLOAT;
+            token.float_val = scan_float();
+        } break;
+
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
-            token.kind = TOKEN_INT;
-            token.int_val = scan_int();
+            char *snapshot = stream;
+            while (isdigit(*stream)) {
+                ++stream;
+            }
+
+            if (*stream == '.') {
+                token.kind = TOKEN_FLOAT;
+                token.float_val = scan_float();
+            } else {
+                stream = snapshot;
+                token.kind = TOKEN_INT;
+                token.int_val = scan_int();
+            }
         } break;
 
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i':
@@ -542,7 +567,7 @@ repeat:
         CASE1('(', TOKEN_LPAREN)
         CASE1(')', TOKEN_RPAREN)
         CASE1(',', TOKEN_COMMA)
-        CASE1('.', TOKEN_DOT)
+        //CASE1('.', TOKEN_DOT)
         CASE1('~', TOKEN_1COMP)
         CASE1('!', TOKEN_NOT)
         CASE1('/', TOKEN_DIV)
@@ -572,6 +597,9 @@ print_token(Token token) {
     switch(token.kind) {
         case TOKEN_INT: {
             printf("TOKEN INT: %llu\n", token.int_val);
+        } break;
+        case TOKEN_FLOAT: {
+            printf("TOKEN FLOAT: %f\n", token.float_val);
         } break;
         case TOKEN_NAME: {
             printf("TOKEN NAME: %.*s (intern &%p)\n", (int)(token.end - token.start), token.start, token.name);
@@ -626,10 +654,11 @@ expect_token(TokenKind kind) {
     }
 }
 
-#define assert_token(x)      assert(match_token(x))
-#define assert_token_name(x) assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
-#define assert_token_int(x)  assert(token.int_val == (x) && match_token(TOKEN_INT))
-#define assert_token_eof()   assert(is_token(TOKEN_EOF))
+#define assert_token(x)       assert(match_token(x))
+#define assert_token_name(x)  assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
+#define assert_token_int(x)   assert(token.int_val == (x) && match_token(TOKEN_INT))
+#define assert_token_float(x) assert(token.float_val == (x) && match_token(TOKEN_FLOAT))
+#define assert_token_eof()    assert(is_token(TOKEN_EOF))
 
 internal void
 lex_test() {
@@ -641,7 +670,7 @@ lex_test() {
     assert_token_eof();
 
     // Misc tests
-    init_stream("XY+(XY) 1234 - 42_HELLO1,23*foo!Yeah...93<<8+8>>2+2**4");
+    init_stream("XY+(XY) 1234 - 42_HELLO1,23*foo!Yeah93<<8+8>>2+2**4");
     assert_token_name("XY");
     assert_token(TOKEN_ADD);
     assert_token(TOKEN_LPAREN);
@@ -656,11 +685,7 @@ lex_test() {
     assert_token(TOKEN_MUL);
     assert_token_name("foo");
     assert_token(TOKEN_NOT);
-    assert_token_name("Yeah");
-    assert_token(TOKEN_DOT);
-    assert_token(TOKEN_DOT);
-    assert_token(TOKEN_DOT);
-    assert_token_int(93);
+    assert_token_name("Yeah93");
     assert_token(TOKEN_LSHIFT);
     assert_token_int(8);
     assert_token(TOKEN_ADD);
