@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <math.h>
 #include <ctype.h>
 #include <string.h>
 #include <stdarg.h>
@@ -468,12 +469,41 @@ scan_int() {
     return result;
 }
 
+// FLOAT = [0-9]*[.][0-9]*([eE][+-]?[0-9]+)?
 internal f64
 scan_float() {
-    f64 result = 0.0f;
+    char *start = stream;
+    while (isdigit(*stream)) {
+        ++stream;
+    }
+
+    if (*stream == '.') {
+        ++stream;
+    }
+    else if (tolower(*stream) == 'e') {
+        ++stream;
+        if (*stream == '+' || *stream == '-') {
+            ++stream;
+        }
+        if (!isdigit(*stream)) {
+            syntax_error("Expected digit after float literal exponent. Found '%c' instead!", *stream);
+        }
+    }
+    else {
+        syntax_error("Expected '.' or 'e' in float literal. Found '%c' instead!", *stream);
+    }
+
+    while (isdigit(*stream)) {
+        ++stream;
+    }
+
+    char *end = stream;
+    f64 result = strtod(start, NULL);
+    if (result == HUGE_VAL || result == -HUGE_VAL) {
+        syntax_error("Float literal overflow!");
+    }
     return result;
 }
-
 
 /*
  * The tokenizer uses a big switch statement because it's fast. The other way
@@ -506,16 +536,15 @@ repeat:
         } break;
 
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
-            char *snapshot = stream;
             while (isdigit(*stream)) {
                 ++stream;
             }
-
-            if (*stream == '.') {
+            if (*stream == '.' || *stream == 'e') {
+                stream = token.start;
                 token.kind = TOKEN_FLOAT;
                 token.float_val = scan_float();
             } else {
-                stream = snapshot;
+                stream = token.start;
                 token.kind = TOKEN_INT;
                 token.int_val = scan_int();
             }
@@ -731,6 +760,18 @@ lex_test() {
     assert_token_int(1);
     assert_token_int(16);
     assert_token_int(13);
+    assert_token_eof();
+
+    //
+    // Float tests
+    //
+    init_stream("3.14 .123 42. 2e5 4e-3 88.987654321");
+    assert_token_float(3.14);
+    assert_token_float(.123);
+    assert_token_float(42.);
+    assert_token_float(2e5);
+    assert_token_float(4e-3);
+    assert_token_float(88.987654321);
     assert_token_eof();
 }
 
