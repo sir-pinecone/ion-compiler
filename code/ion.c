@@ -516,6 +516,7 @@ scan_int() {
     u64 base = 10;
     if (*stream == '0') {
         ++stream;
+        if (*stream && isalnum(*stream)) {
             if (tolower(*stream) == 'x') {
                 ++stream;
                 base = 16; // Hex.
@@ -531,6 +532,7 @@ scan_int() {
                 syntax_error("Invalid integer literal suffix '%c'!", *stream);
                 ++stream;
             }
+        }
     }
 
     u64 val = 0;
@@ -832,9 +834,13 @@ lex_test() {
     //
 
     // Decimals
-    init_stream("18446744073709551615 42");
+    init_stream("18446744073709551615 42 0 00 000 666");
     assert_token_int(18446744073709551615ull); // Verify that UINT64_MAX doesn't trigger an overflow.
     assert_token_int(42);
+    assert_token_int(0);
+    assert_token_int(0);
+    assert_token_int(0);
+    assert_token_int(666);
     assert_token_eof();
 
     // Hex
