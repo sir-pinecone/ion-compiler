@@ -311,7 +311,6 @@ typedef enum TokenMod {
     TOKENMOD_BIN,
     TOKENMOD_OCT,
     TOKENMOD_CHAR,
-    TOKENMOD_STR
 } TokenMod;
 
 char *token_kind_names[] = {
@@ -378,6 +377,7 @@ typedef struct Token {
     union {
         u64 int_val;
         f64 float_val;
+        char *str_val;
         char *name; // Interned name for an identifier.
     };
 } Token;
@@ -438,6 +438,8 @@ char escape_to_digit[256] = {
     ['t'] = '\t',
     ['b'] = '\b',
     ['a'] = '\a',
+    ['"'] = '\"',
+    ['\\'] = '\\',
     ['0'] = 0,
 };
 
@@ -451,7 +453,7 @@ scan_char() {
         fatal_syntax_error("Char literal cannot be empty");
         ++stream;
     } else if (*stream == '\n') {
-        fatal_syntax_error("Char literal cannot contain newline");
+        fatal_syntax_error("Char literal cannot contain a newline");
     } else if (*stream == '\\') {
         ++stream;
         val = escape_to_digit[*stream];
@@ -471,13 +473,42 @@ scan_char() {
     ++stream;
 
     token.kind = TOKEN_INT;
-    token.int_val = val;
     token.mod = TOKENMOD_CHAR;
+    token.int_val = val;
 }
 
 internal void
 scan_str() {
-    token.mod = TOKENMOD_STR;
+    assert(*stream == '"');
+    ++stream;
+    char *str = NULL;
+    while (*stream && *stream != '"') {
+        char val = *stream;
+        if (val == '\n') {
+            syntax_error("String literal cannot contain a newline. Invalid string value: %.*s\\n\n", (int)(stream - token.start - 1), str);
+            ++stream;
+            continue;
+        }
+        if (val == '\\') {
+            ++stream;
+            val = escape_to_digit[*stream];
+            if (val == 0 && *stream != '0') {
+                syntax_error("Invalid string escape literal '\\%c'", *stream);
+            }
+        }
+        buf_push(str, val);
+        ++stream;
+    }
+
+    if (*stream) {
+        assert(*stream == '"');
+        ++stream;
+    } else {
+        fatal_syntax_error("Unexpected end of file within string literal:\n%s\n", token.start);
+    }
+
+    token.kind = TOKEN_STR;
+    token.str_val = str_intern_range(str, buf_end(str));
 }
 
 internal void
@@ -784,6 +815,7 @@ expect_token_with_mod(TokenKind kind, TokenMod mod) {
 #define assert_token_int(x)   assert(token.int_val == (x) && match_token(TOKEN_INT))
 #define assert_token_float(x) assert(token.float_val == (x) && match_token(TOKEN_FLOAT))
 #define assert_token_char(x)  assert(token.int_val == (x) && match_token_with_mod(TOKEN_INT, TOKENMOD_CHAR))
+#define assert_token_str(x)   assert(token.str_val == str_intern(x) && match_token(TOKEN_STR))
 #define assert_token_eof()    assert(is_token(TOKEN_EOF))
 
 internal void
@@ -846,11 +878,32 @@ lex_test() {
     //
     // Char literal tests
     //
-    init_stream("'a' '\\n' '\\b' '0'");
+    init_stream("'a' '\\n' '\\b' '\"' '\\\\' '0'");
     assert_token_char('a');
     assert_token_char('\n');
     assert_token_char('\b');
+    assert_token_char('\"');
+    assert_token_char('\\');
     assert_token_char('0');
+    assert_token_eof();
+
+    //
+    // String tests
+    //
+    init_stream("\"\" \"  \" \"bob\" \"Michael was a wild man!\" \"yes\\nthis\\nis\\na\\nbroken\\nstring\"");
+    assert_token_str("");
+    assert_token_str("  ");
+    assert_token_str("bob");
+    assert_token_str("Michael was a wild man!");
+    assert_token_str("yes\nthis\nis\na\nbroken\nstring");
+    assert_token_eof();
+
+    init_stream("\"\\\\\"  \"\\\\z\\n\" \"\\\"z\\\"\\n\" \"\\\\\\\"z\\\\\\\"\\n\" \"\\t\\b\\a\"");
+    assert_token_str("\\");
+    assert_token_str("\\z\n");
+    assert_token_str("\"z\"\n");
+    assert_token_str("\\\"z\\\"\n");
+    assert_token_str("\t\b\a");
     assert_token_eof();
 
     //
@@ -891,6 +944,7 @@ lex_test() {
 #undef assert_token_int
 #undef assert_token_float
 #undef assert_token_char
+#undef assert_token_str
 #undef assert_token_eof
 
 #if 0

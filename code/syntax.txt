@@ -1,5 +1,11 @@
 # The ion Grammar
 
+## What I want
+
+* typeof() operator.
+* Pointer member access uses a dot just like non-pointers.
+* There are other goodies in Jai that I want.
+
 ## Grouping tokens:
 
 ( ) [ ] { }
