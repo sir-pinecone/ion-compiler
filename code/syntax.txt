@@ -18,7 +18,7 @@
 
 LSHIFT = '<<'
 RSHIFT = '>>'
-EQ     = ' =='
+EQ     = '=='
 NOT_EQ = '!='
 LT_EQ  = '<='
 GT_EQ  = '>='
@@ -36,16 +36,18 @@ OR
 
 =
 
-COLON_ASSIGN  = ': ='
-ADD_ASSIGN    = '+ ='
-SUB_ASSIGN    = '- ='
-OR_ASSIGN     = '| ='
-XOR_ASSIGN    = '^ ='
+COLON_ASSIGN  = ':='
+ADD_ASSIGN    = '+='
+SUB_ASSIGN    = '-='
+OR_ASSIGN     = '|='
+XOR_ASSIGN    = '^='
 LSHIFT_ASSIGN = '<<='
 RSHIFT_ASSIGN = '>>=
-MUL_ASSIGN    = '* ='
-DIV_ASSIGN    = '/ ='
+MUL_ASSIGN    = '*='
+DIV_ASSIGN    = '/='
 MOD_ASSIGN    = '%='
+INC           = '++'
+DEC           = '--'
 
 ## Names / literals:
 

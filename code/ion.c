@@ -265,7 +265,7 @@ typedef enum TokenKind {
     TOKEN_NAME,
     // Unary precedence
     TOKEN_EXP,     // @question Want this still?
-    TOKEN_1COMP,
+    TOKEN_NEG,
     TOKEN_NOT,
     // Multiplicative precedence
     TOKEN_MUL,
@@ -332,7 +332,7 @@ char *token_kind_names[] = {
     [TOKEN_NAME]          = "name",
     [TOKEN_STR]           = "string",
     [TOKEN_EXP]           = "**",
-    [TOKEN_1COMP]         = "~",
+    [TOKEN_NEG]           = "~",
     [TOKEN_NOT]           = "!",
     [TOKEN_MUL]           = "*",
     [TOKEN_DIV]           = "/",
@@ -405,12 +405,6 @@ token_info() {
         return token_kind_name(token.kind);
     }
 }
-
-#define CASE1(c1, k1) \
-    case c1: {\
-        token.kind = k1; \
-        ++stream; \
-    } break;
 
 char char_to_digit[256] = {
     ['0'] = 0,
@@ -602,6 +596,35 @@ scan_float() {
     token.float_val = val;
 }
 
+#define CASE1(c1, k1) \
+    case c1: { \
+        token.kind = k1; \
+        ++stream; \
+    } break;
+
+#define CASE2(c1, k1, c2, k2) \
+    case c1: { \
+        token.kind = k1; \
+        ++stream; \
+        if (*stream == c2) { \
+            token.kind = k2; \
+            ++stream; \
+        } \
+    } break;
+
+#define CASE3(c1, k1, c2, k2, c3, k3) \
+    case c1: { \
+        token.kind = k1; \
+        ++stream; \
+        if (*stream == c2) { \
+            token.kind = k2; \
+            ++stream; \
+        } else if (*stream == c3) { \
+            token.kind = k3; \
+            ++stream; \
+        } \
+    } break;
+
 /*
  * The tokenizer uses a big switch statement because it's fast. The other way
  * of doing it would be using if statements to test if the byte is alphabetical
@@ -629,10 +652,6 @@ repeat:
             goto repeat;
         } break;
 
-        case '.': {
-            scan_float();
-        } break;
-
         case '\'': {
             scan_char();
         } break;
@@ -641,15 +660,19 @@ repeat:
             scan_str();
         } break;
 
+        case '.': {
+            scan_float();
+        } break;
+
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
             while (isdigit(*stream)) {
                 ++stream;
             }
-            if (*stream == '.' || *stream == 'e') {
-                stream = token.start;
+            char c = *stream;
+            stream = token.start;
+            if (c == '.' || c == 'e') {
                 scan_float();
             } else {
-                stream = token.start;
                 scan_int();
             }
         } break;
@@ -669,47 +692,64 @@ repeat:
         } break;
 
         case '<': {
-            token.kind = '<';
+            token.kind = TOKEN_LT;
             ++stream;
             if (*stream == '<') {
                 token.kind = TOKEN_LSHIFT;
+                ++stream;
+                if (*stream == '=') {
+                    token.kind = TOKEN_LSHIFT_ASSIGN;
+                    ++stream;
+                }
+            }
+            else if (*stream == '=') {
+                token.kind = TOKEN_LT_EQ;
                 ++stream;
             }
         } break;
 
         case '>': {
-           token.kind = '>';
+            token.kind = TOKEN_GT;
             ++stream;
             if (*stream == '>') {
                 token.kind = TOKEN_RSHIFT;
                 ++stream;
+                if (*stream == '=') {
+                    token.kind = TOKEN_RSHIFT_ASSIGN;
+                    ++stream;
+                }
             }
-        } break;
-
-        case '*': {
-            token.kind = TOKEN_MUL;
-            ++stream;
-            if (*stream == '*') {
-                token.kind = TOKEN_EXP;
+            else if (*stream == '=') {
+                token.kind = TOKEN_GT_EQ;
                 ++stream;
             }
         } break;
 
         CASE1('\0', TOKEN_EOF)
-        CASE1(':', TOKEN_COLON)
         CASE1('(', TOKEN_LPAREN)
         CASE1(')', TOKEN_RPAREN)
+        CASE1('{', TOKEN_LBRACE)
+        CASE1('}', TOKEN_RBRACE)
+        CASE1('[', TOKEN_LBRACKET)
+        CASE1(']', TOKEN_RBRACKET)
         CASE1(',', TOKEN_COMMA)
+        CASE1('?', TOKEN_QUESTION)
+        CASE1(';', TOKEN_SEMICOLON)
+        CASE1('~', TOKEN_NEG)
         //CASE1('.', TOKEN_DOT)
-        CASE1('~', TOKEN_1COMP)
-        CASE1('!', TOKEN_NOT)
-        CASE1('/', TOKEN_DIV)
-        CASE1('%', TOKEN_MOD)
-        CASE1('&', TOKEN_AND)
-        CASE1('+', TOKEN_ADD)
-        CASE1('-', TOKEN_SUB)
-        CASE1('^', TOKEN_XOR)
-        CASE1('|', TOKEN_OR)
+
+        CASE2(':', TOKEN_COLON,  '=', TOKEN_COLON_ASSIGN)
+        CASE2('=', TOKEN_ASSIGN, '=', TOKEN_EQ)
+        CASE2('!', TOKEN_NOT,    '=', TOKEN_NOT_EQ)
+        CASE2('^', TOKEN_XOR,    '=', TOKEN_XOR_ASSIGN)
+        CASE2('/', TOKEN_DIV,    '=', TOKEN_DIV_ASSIGN)
+        CASE2('%', TOKEN_MOD,    '=', TOKEN_MOD_ASSIGN)
+
+        CASE3('*', TOKEN_MUL, '*', TOKEN_EXP,     '=', TOKEN_MUL_ASSIGN)
+        CASE3('+', TOKEN_ADD, '+', TOKEN_INC,     '=', TOKEN_ADD_ASSIGN)
+        CASE3('-', TOKEN_SUB, '-', TOKEN_DEC,     '=', TOKEN_SUB_ASSIGN)
+        CASE3('&', TOKEN_AND, '&', TOKEN_AND_AND, '=', TOKEN_AND_ASSIGN)
+        CASE3('|', TOKEN_OR,  '|', TOKEN_OR_OR,   '=', TOKEN_OR_ASSIGN)
 
         default: {
             syntax_error("Unrecognized stream character: %c!", *stream);
@@ -719,6 +759,10 @@ repeat:
     }
     token.end = stream;
 }
+
+#undef CASE1
+#undef CASE2
+#undef CASE3
 
 inline void
 init_stream(char *str) {
@@ -825,13 +869,24 @@ expect_token_with_mod(TokenKind kind, TokenMod mod) {
 
 internal void
 lex_test() {
+    //
     // Operator tests
-    init_stream("+ << :");
-    assert_token(TOKEN_ADD);
+    //
+    init_stream("< << <= <<= : := = == + ++ += ! !=");
+    assert_token(TOKEN_LT);
     assert_token(TOKEN_LSHIFT);
+    assert_token(TOKEN_LT_EQ);
+    assert_token(TOKEN_LSHIFT_ASSIGN);
     assert_token(TOKEN_COLON);
+    assert_token(TOKEN_COLON_ASSIGN);
+    assert_token(TOKEN_ASSIGN);
+    assert_token(TOKEN_EQ);
+    assert_token(TOKEN_ADD);
+    assert_token(TOKEN_INC);
+    assert_token(TOKEN_ADD_ASSIGN);
+    assert_token(TOKEN_NOT);
+    assert_token(TOKEN_NOT_EQ);
     assert_token_eof();
-
 
     //
     // Integer tests
@@ -1011,7 +1066,7 @@ internal i64
 parse_unary() {
     // Right associative
     i64 result;
-    if (is_token(TOKEN_SUB) || is_token(TOKEN_ADD) || is_token(TOKEN_1COMP)) {
+    if (is_token(TOKEN_SUB) || is_token(TOKEN_DEC) || is_token(TOKEN_ADD) || is_token(TOKEN_NEG)) {
         TokenKind op = token.kind;
         printf(token_kind_name(op));
         next_token();
@@ -1019,7 +1074,10 @@ parse_unary() {
         if (op == TOKEN_SUB) {
             result = -rval;
         }
-        else if (op == TOKEN_1COMP) {
+        else if (op == TOKEN_DEC) {
+            result = rval - 1;
+        }
+        else if (op == TOKEN_NEG) {
             result = ~rval;
         }
         else {
@@ -1120,8 +1178,11 @@ parse_test() {
     assert_expr(-(3 + 8 - 2));
     assert_expr((10 / 5) * ((2 - 5) + (25 / 5)));
 
-    assert_expr_with_result(-----3, -3);
-    assert_expr_with_result(---(-3), 3);
+    assert_expr_with_result(--3, 2);
+    assert_expr_with_result(--0, -1);
+    assert_expr_with_result(---5, -6);   // (--(-5))
+    assert_expr_with_result(---(-3), 2); // (--(-(-3)))
+    assert_expr_with_result(-----3, -5); // (-- (-- (-3)))
 
     assert_expr(+3);
     assert_expr(-+3);
