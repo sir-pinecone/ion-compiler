@@ -261,7 +261,7 @@ typedef enum TokenKind {
     // TOKEN_KEYWORD,
     TOKEN_INT,     // @improve Add i32 & i64 support.
     TOKEN_FLOAT,   // @improve Add f32 & f64 support.
-    //TOKEN_STR,
+    TOKEN_STR,
     TOKEN_NAME,
     // Unary precedence
     TOKEN_EXP,     // @question Want this still?
@@ -305,6 +305,15 @@ typedef enum TokenKind {
     TOKEN_COLON_ASSIGN
 } TokenKind;
 
+typedef enum TokenMod {
+    TOKENMOD_NONE,
+    TOKENMOD_HEX,
+    TOKENMOD_BIN,
+    TOKENMOD_OCT,
+    TOKENMOD_CHAR,
+    TOKENMOD_STR
+} TokenMod;
+
 char *token_kind_names[] = {
     [TOKEN_EOF]           = "EOF",
     [TOKEN_COLON]         = ":",
@@ -322,6 +331,7 @@ char *token_kind_names[] = {
     [TOKEN_INT]           = "integer",
     [TOKEN_FLOAT]         = "float",
     [TOKEN_NAME]          = "name",
+    [TOKEN_STR]           = "string",
     [TOKEN_EXP]           = "**",
     [TOKEN_1COMP]         = "~",
     [TOKEN_NOT]           = "!",
@@ -361,6 +371,7 @@ char *token_kind_names[] = {
 
 typedef struct Token {
     TokenKind kind;
+    TokenMod mod;
     // All tokens contain the string literal that it represents.
     char *start;
     char *end;
@@ -420,7 +431,56 @@ char char_to_digit[256] = {
     ['f'] = 15, ['F'] = 15,
 };
 
-internal u64
+char escape_to_digit[256] = {
+    ['n'] = '\n',
+    ['r'] = '\r',
+    ['v'] = '\v',
+    ['t'] = '\t',
+    ['b'] = '\b',
+    ['a'] = '\a',
+    ['0'] = 0,
+};
+
+internal void
+scan_char() {
+    assert(*stream == '\'');
+    ++stream;
+
+    char val = 0;
+    if (*stream == '\'') {
+        fatal_syntax_error("Char literal cannot be empty");
+        ++stream;
+    } else if (*stream == '\n') {
+        fatal_syntax_error("Char literal cannot contain newline");
+    } else if (*stream == '\\') {
+        ++stream;
+        val = escape_to_digit[*stream];
+        if (val == 0 && *stream != '0') {
+            syntax_error("Invalid escape char literal '\\%c'", *stream);
+        }
+        ++stream;
+    } else {
+        val = *stream;
+        ++stream;
+    }
+
+    if (*stream != '\'') {
+        fatal_syntax_error("Expected closing char literal quote, but got '%c' instead", *stream);
+    }
+
+    ++stream;
+
+    token.kind = TOKEN_INT;
+    token.int_val = val;
+    token.mod = TOKENMOD_CHAR;
+}
+
+internal void
+scan_str() {
+    token.mod = TOKENMOD_STR;
+}
+
+internal void
 scan_int() {
     u64 base = 10;
     if (*stream == '0') {
@@ -444,7 +504,7 @@ scan_int() {
         }
     }
 
-    u64 result = 0;
+    u64 val = 0;
     for (;;) {
         u64 digit = char_to_digit[*stream];
 
@@ -455,28 +515,29 @@ scan_int() {
         }
 
         ++stream;
-        if (result > (UINT64_MAX - digit) / base) {
+        if (val > (UINT64_MAX - digit) / base) {
             syntax_error("Integer literal overflow!");
             while (digit = char_to_digit[*stream] && (digit != 0 || *stream != '0')) {
                 ++stream;
             }
-            result = 0;
+            val = 0;
         }
         else {
-            result = result * base + digit;
+            val = val * base + digit;
         }
     }
-    return result;
+
+    token.kind = TOKEN_INT;
+    token.int_val = val;
 }
 
 // FLOAT = [0-9]*[.][0-9]*([eE][+-]?[0-9]+)?
-internal f64
+internal void
 scan_float() {
     char *start = stream;
     while (isdigit(*stream)) {
         ++stream;
     }
-
     if (*stream == '.') {
         ++stream;
     }
@@ -498,11 +559,13 @@ scan_float() {
     }
 
     char *end = stream;
-    f64 result = strtod(start, NULL);
-    if (result == HUGE_VAL || result == -HUGE_VAL) {
+    f64 val = strtod(start, NULL);
+    if (val == HUGE_VAL || val == -HUGE_VAL) {
         syntax_error("Float literal overflow!");
     }
-    return result;
+
+    token.kind = TOKEN_FLOAT;
+    token.float_val = val;
 }
 
 /*
@@ -522,6 +585,8 @@ internal void
 next_token() {
 repeat:
     token.start = stream; // It may not be null-terminated!
+    token.mod = 0;
+
     switch (*stream) {
         case ' ': case '\r': case '\n': case '\t': case '\v': {
             while (isspace(*stream)) {
@@ -531,8 +596,15 @@ repeat:
         } break;
 
         case '.': {
-            token.kind = TOKEN_FLOAT;
-            token.float_val = scan_float();
+            scan_float();
+        } break;
+
+        case '\'': {
+            scan_char();
+        } break;
+
+        case '"': {
+            scan_str();
         } break;
 
         case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': {
@@ -541,12 +613,10 @@ repeat:
             }
             if (*stream == '.' || *stream == 'e') {
                 stream = token.start;
-                token.kind = TOKEN_FLOAT;
-                token.float_val = scan_float();
+                scan_float();
             } else {
                 stream = token.start;
-                token.kind = TOKEN_INT;
-                token.int_val = scan_int();
+                scan_int();
             }
         } break;
 
@@ -663,6 +733,11 @@ is_token_name(char *name) {
 }
 
 inline b32
+is_token_mod(TokenMod mod) {
+    return token.mod == mod;
+}
+
+inline b32
 match_token(TokenKind kind) {
     if (is_token(kind)) {
         next_token();
@@ -683,10 +758,32 @@ expect_token(TokenKind kind) {
     }
 }
 
+inline b32
+match_token_with_mod(TokenKind kind, TokenMod mod) {
+    if (is_token(kind) && is_token_mod(mod)) {
+        next_token();
+        return true;
+    } else {
+        return false;
+    }
+}
+
+inline b32
+expect_token_with_mod(TokenKind kind, TokenMod mod) {
+    if (is_token(kind) && is_token_mod(mod)) {
+        next_token();
+        return true;
+    } else {
+        fatal("Expected token %s with mod %d, got kind %s with mod %d instead", token_kind_name(kind), mod, token_info(), token.mod);
+        return false;
+    }
+}
+
 #define assert_token(x)       assert(match_token(x))
 #define assert_token_name(x)  assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
 #define assert_token_int(x)   assert(token.int_val == (x) && match_token(TOKEN_INT))
 #define assert_token_float(x) assert(token.float_val == (x) && match_token(TOKEN_FLOAT))
+#define assert_token_char(x)  assert(token.int_val == (x) && match_token_with_mod(TOKEN_INT, TOKENMOD_CHAR))
 #define assert_token_eof()    assert(is_token(TOKEN_EOF))
 
 internal void
@@ -698,34 +795,6 @@ lex_test() {
     assert_token(TOKEN_COLON);
     assert_token_eof();
 
-    // Misc tests
-    init_stream("XY+(XY) 1234 - 42_HELLO1,23*foo!Yeah93<<8+8>>2+2**4");
-    assert_token_name("XY");
-    assert_token(TOKEN_ADD);
-    assert_token(TOKEN_LPAREN);
-    assert_token_name("XY");
-    assert_token(TOKEN_RPAREN);
-    assert_token_int(1234);
-    assert_token(TOKEN_SUB);
-    assert_token_int(42);
-    assert_token_name("_HELLO1");
-    assert_token(TOKEN_COMMA);
-    assert_token_int(23);
-    assert_token(TOKEN_MUL);
-    assert_token_name("foo");
-    assert_token(TOKEN_NOT);
-    assert_token_name("Yeah93");
-    assert_token(TOKEN_LSHIFT);
-    assert_token_int(8);
-    assert_token(TOKEN_ADD);
-    assert_token_int(8);
-    assert_token(TOKEN_RSHIFT);
-    assert_token_int(2);
-    assert_token(TOKEN_ADD);
-    assert_token_int(2);
-    assert_token(TOKEN_EXP);
-    assert_token_int(4);
-    assert_token_eof();
 
     //
     // Integer tests
@@ -773,11 +842,55 @@ lex_test() {
     assert_token_float(4e-3);
     assert_token_float(88.987654321);
     assert_token_eof();
+
+    //
+    // Char literal tests
+    //
+    init_stream("'a' '\\n' '\\b' '0'");
+    assert_token_char('a');
+    assert_token_char('\n');
+    assert_token_char('\b');
+    assert_token_char('0');
+    assert_token_eof();
+
+    //
+    // Misc tests
+    //
+    init_stream("XY+(XY) 1234 - 42_HELLO1,23*foo!Yeah93<<8+8>>2+2**4");
+    assert_token_name("XY");
+    assert_token(TOKEN_ADD);
+    assert_token(TOKEN_LPAREN);
+    assert_token_name("XY");
+    assert_token(TOKEN_RPAREN);
+    assert_token_int(1234);
+    assert_token(TOKEN_SUB);
+    assert_token_int(42);
+    assert_token_name("_HELLO1");
+    assert_token(TOKEN_COMMA);
+    assert_token_int(23);
+    assert_token(TOKEN_MUL);
+    assert_token_name("foo");
+    assert_token(TOKEN_NOT);
+    assert_token_name("Yeah93");
+    assert_token(TOKEN_LSHIFT);
+    assert_token_int(8);
+    assert_token(TOKEN_ADD);
+    assert_token_int(8);
+    assert_token(TOKEN_RSHIFT);
+    assert_token_int(2);
+    assert_token(TOKEN_ADD);
+    assert_token_int(2);
+    assert_token(TOKEN_EXP);
+    assert_token_int(4);
+    assert_token_eof();
+
 }
 
 #undef assert_token
 #undef assert_token_name
 #undef assert_token_int
+#undef assert_token_float
+#undef assert_token_char
 #undef assert_token_eof
 
 #if 0
