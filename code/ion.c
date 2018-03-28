@@ -519,13 +519,16 @@ scan_int() {
         if (*stream && isalnum(*stream)) {
             if (tolower(*stream) == 'x') {
                 ++stream;
+                token.mod = TOKENMOD_HEX;
                 base = 16; // Hex.
             }
             else if (tolower(*stream) == 'b') {
                 ++stream;
+                token.mod = TOKENMOD_BIN;
                 base = 2;
             }
             else if (isdigit(*stream)) {
+                token.mod = TOKENMOD_OCT;
                 base = 8; // Octal.
             }
             else {
@@ -814,6 +817,7 @@ expect_token_with_mod(TokenKind kind, TokenMod mod) {
 #define assert_token(x)       assert(match_token(x))
 #define assert_token_name(x)  assert(token.name == str_intern(x) && match_token(TOKEN_NAME))
 #define assert_token_int(x)   assert(token.int_val == (x) && match_token(TOKEN_INT))
+#define assert_token_int_mod(x, mod) assert(token.int_val == (x) && match_token_with_mod(TOKEN_INT, mod))
 #define assert_token_float(x) assert(token.float_val == (x) && match_token(TOKEN_FLOAT))
 #define assert_token_char(x)  assert(token.int_val == (x) && match_token_with_mod(TOKEN_INT, TOKENMOD_CHAR))
 #define assert_token_str(x)   assert(token.str_val == str_intern(x) && match_token(TOKEN_STR))
@@ -834,39 +838,38 @@ lex_test() {
     //
 
     // Decimals
-    init_stream("18446744073709551615 42 0 00 000 666");
-    assert_token_int(18446744073709551615ull); // Verify that UINT64_MAX doesn't trigger an overflow.
-    assert_token_int(42);
-    assert_token_int(0);
-    assert_token_int(0);
-    assert_token_int(0);
-    assert_token_int(666);
+    init_stream("18446744073709551615 42 0 666");
+    assert_token_int_mod(18446744073709551615ull, TOKENMOD_NONE); // Verify that UINT64_MAX doesn't trigger an overflow.
+    assert_token_int_mod(42, TOKENMOD_NONE);
+    assert_token_int_mod(0, TOKENMOD_NONE);
+    assert_token_int_mod(666, TOKENMOD_NONE);
     assert_token_eof();
 
     // Hex
     init_stream("0xFFFFFFFFFFFFFFFF 0x8 0xF 0x5Cf9A 0XA 0x0000000004");
-    assert_token_int(18446744073709551615ull); // Verify that UINT64_MAX doesn't trigger an overflow.
-    assert_token_int(8);
-    assert_token_int(15);
-    assert_token_int(380826);
-    assert_token_int(10);
-    assert_token_int(4);
+    assert_token_int_mod(0xFFFFFFFFFFFFFFFF, TOKENMOD_HEX); // Verify that UINT64_MAX doesn't trigger an overflow.
+    assert_token_int_mod(8, TOKENMOD_HEX);
+    assert_token_int_mod(15, TOKENMOD_HEX);
+    assert_token_int_mod(0X5CF9A, TOKENMOD_HEX);
+    assert_token_int_mod(0xA, TOKENMOD_HEX);
+    assert_token_int_mod(4, TOKENMOD_HEX);
     assert_token_eof();
 
     // Octal
-    init_stream("01777777777777777777777 010 01234567 000001");
-    assert_token_int(18446744073709551615ull); // Verify that UINT64_MAX doesn't trigger an overflow.
-    assert_token_int(8);
-    assert_token_int(342391);
-    assert_token_int(1);
+    init_stream("01777777777777777777777 010 01234567 00 000001");
+    assert_token_int_mod(01777777777777777777777, TOKENMOD_OCT); // Verify that UINT64_MAX doesn't trigger an overflow.
+    assert_token_int_mod(010, TOKENMOD_OCT);
+    assert_token_int_mod(01234567, TOKENMOD_OCT);
+    assert_token_int_mod(00, TOKENMOD_OCT);
+    assert_token_int_mod(000001, TOKENMOD_OCT);
     assert_token_eof();
 
     // Binary
-    init_stream("0b1111111111111111111111111111111111111111111111111111111111111111 0b0001 0b10000 0b01101");
-    assert_token_int(18446744073709551615ull); // Verify that UINT64_MAX doesn't trigger an overflow.
-    assert_token_int(1);
-    assert_token_int(16);
-    assert_token_int(13);
+    init_stream("0b1111111111111111111111111111111111111111111111111111111111111111 0b0001 0b10000 0b01111");
+    assert_token_int_mod(18446744073709551615ull, TOKENMOD_BIN); // Verify that UINT64_MAX doesn't trigger an overflow.
+    assert_token_int_mod(1, TOKENMOD_BIN);
+    assert_token_int_mod(16, TOKENMOD_BIN);
+    assert_token_int_mod(0xF, TOKENMOD_BIN);
     assert_token_eof();
 
     //
@@ -948,6 +951,7 @@ lex_test() {
 #undef assert_token
 #undef assert_token_name
 #undef assert_token_int
+#undef assert_token_int_mod
 #undef assert_token_float
 #undef assert_token_char
 #undef assert_token_str
