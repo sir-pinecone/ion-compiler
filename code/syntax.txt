@@ -3,7 +3,18 @@
 ## What I want
 
 * typeof() operator.
-* Pointer member access uses a dot just like non-pointers.
+* Pointer dereference and struct membership both use the `.` operator.
+* multiple return values
+* implicit for iterator with an index counter; with option to name the iterator.
+* 8, 16, 32, 64 bit numeric types.
+* no implicit type conversions
+* bonus: using keyword
+* defer statement
+* default initializations in structs
+* stop default initialization of variables (like --- in Jai)
+* bonus: compiler directives like in Jai
+    * inline/no inline
+    * file scope, global scope declarations
 * There are other goodies in Jai that I want.
 
 ## Grouping tokens:
@@ -56,3 +67,21 @@ INT  = 0 | [1-9][0-9]* | 0[xX][0-9a-fA-F]+ | 0[0-7]+ | 0[bB][0-1]+
 FLOAT = [0-9]*[.]?[0-9]*([eE][+-]?[0-9]+)?
 CHAR = '\'' . '\''
 STR  = '"' [^"]* '"'
+
+## AST S-expression format:
+
+// I may do `fn fact (n: int) -> int {}` instead. Haven't decided yet.
+fact :: (n: int) -> int {
+    if (n == 0) {
+        return 1;
+    } else {
+        return n * fact(n - 1);
+    }
+}
+
+(:: fact (n int) int
+    (if (== n 0)
+        (then
+            (return 1))
+        (else
+            (return (* n (fact (- n 1)))))))
