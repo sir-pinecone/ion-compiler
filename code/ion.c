@@ -248,6 +248,7 @@ str_intern_test() {
 typedef enum TokenKind {
     TOKEN_EOF,
     TOKEN_COLON,
+    TOKEN_DBL_COLON,
     TOKEN_LPAREN,
     TOKEN_RPAREN,
     TOKEN_LBRACE,
@@ -258,6 +259,7 @@ typedef enum TokenKind {
     TOKEN_DOT,
     TOKEN_QUESTION,
     TOKEN_SEMICOLON,
+    TOKEN_PROC_RETURN,
     // TOKEN_KEYWORD,
     TOKEN_INT,     // @improve Add i32 & i64 support.
     TOKEN_FLOAT,   // @improve Add f32 & f64 support.
@@ -316,6 +318,7 @@ typedef enum TokenMod {
 char *token_kind_names[] = {
     [TOKEN_EOF]           = "EOF",
     [TOKEN_COLON]         = ":",
+    [TOKEN_DBL_COLON]     = "::",
     [TOKEN_LPAREN]        = "(",
     [TOKEN_RPAREN]        = ")",
     [TOKEN_LBRACE]        = "{",
@@ -326,6 +329,7 @@ char *token_kind_names[] = {
     [TOKEN_DOT]           = ".",
     [TOKEN_QUESTION]      = "?",
     [TOKEN_SEMICOLON]     = ";",
+    [TOKEN_PROC_RETURN]   = "->",
     //[TOKEN_KEYWORD]     = ???
     [TOKEN_INT]           = "integer",
     [TOKEN_FLOAT]         = "float",
@@ -725,6 +729,23 @@ repeat:
             }
         } break;
 
+        case '-': {
+            token.kind = TOKEN_SUB;
+            ++stream;
+            if (*stream == '-') {
+                token.kind = TOKEN_DEC;
+                ++stream;
+            }
+            else if (*stream == '=') {
+                token.kind = TOKEN_SUB_ASSIGN;
+                ++stream;
+            }
+            else if (*stream == '>') {
+                token.kind = TOKEN_PROC_RETURN;
+                ++stream;
+            }
+        } break;
+
         CASE1('\0', TOKEN_EOF)
         CASE1('(', TOKEN_LPAREN)
         CASE1(')', TOKEN_RPAREN)
@@ -738,18 +759,17 @@ repeat:
         CASE1('~', TOKEN_NEG)
         //CASE1('.', TOKEN_DOT)
 
-        CASE2(':', TOKEN_COLON,  '=', TOKEN_COLON_ASSIGN)
         CASE2('=', TOKEN_ASSIGN, '=', TOKEN_EQ)
         CASE2('!', TOKEN_NOT,    '=', TOKEN_NOT_EQ)
         CASE2('^', TOKEN_XOR,    '=', TOKEN_XOR_ASSIGN)
         CASE2('/', TOKEN_DIV,    '=', TOKEN_DIV_ASSIGN)
         CASE2('%', TOKEN_MOD,    '=', TOKEN_MOD_ASSIGN)
 
-        CASE3('*', TOKEN_MUL, '*', TOKEN_EXP,     '=', TOKEN_MUL_ASSIGN)
-        CASE3('+', TOKEN_ADD, '+', TOKEN_INC,     '=', TOKEN_ADD_ASSIGN)
-        CASE3('-', TOKEN_SUB, '-', TOKEN_DEC,     '=', TOKEN_SUB_ASSIGN)
-        CASE3('&', TOKEN_AND, '&', TOKEN_AND_AND, '=', TOKEN_AND_ASSIGN)
-        CASE3('|', TOKEN_OR,  '|', TOKEN_OR_OR,   '=', TOKEN_OR_ASSIGN)
+        CASE3(':', TOKEN_COLON, ':', TOKEN_DBL_COLON, '=', TOKEN_COLON_ASSIGN)
+        CASE3('*', TOKEN_MUL,   '*', TOKEN_EXP,       '=', TOKEN_MUL_ASSIGN)
+        CASE3('+', TOKEN_ADD,   '+', TOKEN_INC,       '=', TOKEN_ADD_ASSIGN)
+        CASE3('&', TOKEN_AND,   '&', TOKEN_AND_AND,   '=', TOKEN_AND_ASSIGN)
+        CASE3('|', TOKEN_OR,    '|', TOKEN_OR_OR,     '=', TOKEN_OR_ASSIGN)
 
         default: {
             syntax_error("Unrecognized stream character: %c!", *stream);
@@ -872,7 +892,7 @@ lex_test() {
     //
     // Operator tests
     //
-    init_stream("< << <= <<= : := = == + ++ += ! !=");
+    init_stream("< << <= <<= : := = == + ++ += ! != :: ->");
     assert_token(TOKEN_LT);
     assert_token(TOKEN_LSHIFT);
     assert_token(TOKEN_LT_EQ);
@@ -886,6 +906,8 @@ lex_test() {
     assert_token(TOKEN_ADD_ASSIGN);
     assert_token(TOKEN_NOT);
     assert_token(TOKEN_NOT_EQ);
+    assert_token(TOKEN_DBL_COLON);
+    assert_token(TOKEN_PROC_RETURN);
     assert_token_eof();
 
     //
