@@ -1,0 +1,147 @@
+# The ion Grammar
+
+## What I want
+
+*I had a big list of things, but realized it may be wiser to just mostly stick to what Per is doing
+since I have no idea what I'm doing. I moved the list to the Fz project and marked those
+extra items below as bonus tasks. I can hack on my language later and try to add these features.*
+
+* typeof() operator.
+* First-class types.
+* Pointer dereference and struct membership both use the `.` operator.
+* Multiple return values
+* Strings have a data and a count member.
+* Optional arg parens for if, else, for, while, switch, etc.
+* 8, 16, 32, 64 bit numeric types, e.g. u64, s64, u32, s32, u8, s8, int64, uint64, int, uint, int32,
+  uint32, int8, uint8; f32, f64, float, double, float32, float64
+* Defer statement
+* Default initialization to zero. (e.g. struct members initialized to 0, pointer initialized to 0).
+
+* Nice, but not a big deal: No implicit type conversions
+* Nice, but not a big deal: Default initializations in structs
+* Nice, but not a big deal: Stop default initialization of variables (like --- in Jai)
+
+* Bonus: Implicit for iterator with an index counter; with option to name the iterator.
+* Bonus: For can iterate over a range, e.g. for i: 0..to_draw.count { }
+* Bonus: Can access an enum value using the enum name, e.g. TokenKind.FLOAT
+* Bonus: Can compose structs with the `using` keyword.
+* Bonus: Any type, which any other type can be implicitly casted to.
+
+* Bonus: struct notes system, that can be accessed in the type inspection data
+
+    Cake :: struct {
+        pos: V3;            @NoSerialize
+        falling := false;   @v3
+    }
+
+* Bonus: type introspection, e.g.
+    `some_val.type` // (enum, integer, float, bool, etc)
+    `some_val.type.type == TypeInfoTag.FLOAT;` // (with type.type being an enum value and TypeInfoTag being an enum).
+    'SomeEnum.names (an array of member name strings)
+    'SomeEnum.values (an array of member int values)
+
+* Bonus: dynamic arrays, e.g. entities: [..] *Entity; (with entities having at least an allocator
+  and count member).
+
+* Bonus: struct info, e.g.
+   `info := item.info;
+    assert(info.type == TypeInfoTag.STRUCT);
+    info_struct := cast(*TypeInfoStruct) info;
+    highest_address := 0;
+    for info_struct.members {
+        if it.flags & it.IMPORTED continue;
+        if it.type.runtime_size == 0 continue;
+        if it.flags & it.CONSTANT continue;
+        if it.flags & it.USING continue; // This is our 'using item'
+
+        if (it.offset_in_bytes < highest_address) continue;
+        after_last_byte := it.offset_in_bytes + it.type.runtime_size;
+        highest_address = max(highest_address, after_last_byte);
+        name := it.name; // name of each member as a string.
+
+        for note: some_val.type.notes {
+            if note == "NoSerialize" {
+                continue;
+            }
+
+            if note.data[0] == #char "v" {
+                version_low, version_high = parse_version_note(note, some_val.type);
+                ...
+            }
+        }
+    }
+
+* Bonus: anonymous functions
+* Bonus: using keyword
+* Bonus: compiler directives like in Jai
+    * Inline/no inline
+    * File scope, global scope declarations, e.g #scope_file, #scope_export
+
+## Grouping tokens:
+
+( ) [ ] { }
+
+## Unary operators:
+
++ - ! ~ & *
+
+## Binary operators:
+
+LSHIFT = '<<'
+RSHIFT = '>>'
+EQ     = '=='
+NOT_EQ = '!='
+LT_EQ  = '<='
+GT_EQ  = '>='
+AND    = '&&'
+OR     = '||'
+
++ - | ^ LSHIFT RSHIFT
+* / % &
+EQ NOT_EQ < > LT_EQ GT_EQ
+AND
+OR
+? :
+
+## Assignment operators:
+
+=
+
+COLON_ASSIGN  = ':='
+ADD_ASSIGN    = '+='
+SUB_ASSIGN    = '-='
+OR_ASSIGN     = '|='
+XOR_ASSIGN    = '^='
+LSHIFT_ASSIGN = '<<='
+RSHIFT_ASSIGN = '>>=
+MUL_ASSIGN    = '*='
+DIV_ASSIGN    = '/='
+MOD_ASSIGN    = '%='
+INC           = '++'
+DEC           = '--'
+
+## Names / literals:
+
+NAME = [a-zA-Z_][a-zA-Z0-9_]*
+INT  = 0 | [1-9][0-9]* | 0[xX][0-9a-fA-F]+ | 0[0-7]+ | 0[bB][0-1]+
+FLOAT = [0-9]*[.]?[0-9]*([eE][+-]?[0-9]+)?
+CHAR = '\'' . '\''
+STR  = '"' [^"]* '"'
+
+## AST S-expression format:
+
+// I may do `fn fact (n: int) -> int {}` instead. Haven't decided yet.
+fact :: (n: int) -> int {
+    if (n == 0) {
+        return 1;
+    } else {
+        return n * fact(n - 1);
+    }
+}
+
+(:: fact (n int) int
+    (if (== n 0)
+        (then
+            (return 1))
+        (else
+            (return (* n (fact (- n 1)))))))
