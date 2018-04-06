@@ -95,13 +95,14 @@ typedef struct BufHdr {
 // compiler.
 
 #define _buf_hdr(b) ((BufHdr *)((char *)(b) - offsetof(BufHdr, buf)))
+#define _buf_maybe_pop(b) (_buf_hdr(b)->len ? (b)[--_buf_hdr(b)->len] : 0)
 
 #define buf_count(b) ((b) ? _buf_hdr(b)->len : 0)
 #define buf_cap(b) ((b) ? _buf_hdr(b)->cap : 0)
 #define buf_end(b) ((b) + buf_count(b))
 #define buf_fit(b, n) ((n) <= buf_cap(b) ? 0 : ((b) = _buf_grow((b), (n), sizeof(*(b)))))
 #define buf_push(b, ...) (buf_fit((b), 1 + buf_count(b)), (b)[_buf_hdr(b)->len++] = (__VA_ARGS__))
-#define buf_pop(b) ((b) ? (b)[--_buf_hdr(b)->len] : 0)
+#define buf_pop(b) ((b) ? (_buf_maybe_pop((b))) : 0)
 #define buf_free(b) ((b) ? (free(_buf_hdr(b)), (b) = NULL) : 0)
 
 internal void *
@@ -149,7 +150,7 @@ buf_test() {
         buf_push(buf, i);
     }
     assert(buf_count(buf) == n);
-    for (u32 i = 0; i < buf_count(buf); i++) {
+    for (size_t i = 0; i < buf_count(buf); i++) {
         assert(buf[i] == i);
     }
     buf_free(buf);
@@ -168,6 +169,10 @@ buf_test() {
     }
     assert(buf_count(buf) == 0);
     assert(buf_pop(buf) == 0);
+    assert(buf_pop(buf) == 0);
+
+    buf_push(buf, 1);
+    assert(buf_count(buf) == 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
