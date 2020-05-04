@@ -49,7 +49,6 @@ echo "Building for Windows"
 # OPTIONS DEFAULTS
 #---------------------------------------------------------------------------------------------------
 
-default_platform="desktop"
 default_arch=64
 default_dev_mode=1
 default_debug_mode=1
@@ -61,27 +60,90 @@ default_force_data_copy=1
 
 #---------------------------------------------------------------------------------------------------
 
+source "$JELLYPIXEL_SCRIPTING/platform.sh"   # Gives us $platform, $platform_os
+source "$JELLYPIXEL_SCRIPTING/printing.sh"
+
+os_is_windows is_windows
+shell_is_mingw mingw_shell
+
+if [[ $mingw_shell -eq 0 ]]; then
+    error "Error: the ${platform} platform is not supported!\n"
+    exit 1
+fi
+
 cwd=$PWD
-source_helpers="/w/game-libs/project-templates/_helpers"
-source "$source_helpers/printing.sh"
 
-if [[ ! $(uname) =~ "MINGW" ]]; then
-  error "Error: this build script is not supported on your platform!\n"
-  exit 1
+code_dir="$cwd"
+if [[ -d "$cwd/run_tree" ]]; then
+    code_dir="$cwd/code"
+    cd $code_dir
+    cwd=$PWD
+fi
+
+# If you're using msys/mingw shell for compiling then it's possible for its gcc
+# link.exe to take precedence over the VC link.exe simply due to the path
+# order. We get around this by prefixing all VC tools with the active VC arch
+# bin path.
+
+using_msvc_x64_toolset=0
+
+if [[ $VisualStudioVersion == "14.0" ]]; then
+    ##########################################
+    # Visual Studio 2015
+    ##########################################
+    msvc_bin="$VCINSTALLDIR"
+
+    if [[ $(env | grep "LIB=" | grep "x64") != "" ]]; then
+        printf "${BOLD}${YELLOW}[VS2015 X64]${NORMAL}\n"
+        using_msvc_x64_toolset=1
+        msvc_bin+="bin/amd64"
+    elif [[ $(env | grep "LIB=" | grep "x86") != "" ]]; then
+        printf "${BOLD}${YELLOW}[VS2015 X86]${NORMAL}\n"
+        msvc_bin+="bin/"
+    else
+        error "Unable to determine if you're using an x86 or x64 MSVC toolset\n"
+        exit 1
+    fi
+elif [[ $VisualStudioVersion == "15.0" ]]; then
+    ##########################################
+    # Visual Studio 2017
+    ##########################################
+    msvc_bin="$VCToolsInstallDir"
+
+    if [[ $VSCMD_ARG_HOST_ARCH == "x64" ]]; then
+        printf "${BOLD}${YELLOW}[VS2017 X64]${NORMAL}\n"
+        using_msvc_x64_toolset=1
+        msvc_bin+="bin/Hostx64/x64"
+    elif [[ $VSCMD_ARG_HOST_ARCH == "x86" ]]; then
+        printf "${BOLD}${YELLOW}[VS2017 X86]${NORMAL}\n"
+        msvc_bin+="bin/Hostx86/x86"
+    else
+        error "Unable to determine if you're using an x86 or x64 MSVC toolset\n"
+        exit 1
+    fi
+elif [[ $VisualStudioVersion == "16.0" ]]; then
+    ##########################################
+    # Visual Studio 2019
+    ##########################################
+    msvc_bin="$VCToolsInstallDir"
+
+    if [[ $VSCMD_ARG_HOST_ARCH == "x64" ]]; then
+        printf "${BOLD}${YELLOW}[VS2019 X64]${NORMAL}\n"
+        using_msvc_x64_toolset=1
+        msvc_bin+="bin/Hostx64/x64"
+    elif [[ $VSCMD_ARG_HOST_ARCH == "x86" ]]; then
+        printf "${BOLD}${YELLOW}[VS2019 X86]${NORMAL}\n"
+        msvc_bin+="bin/Hostx86/x86"
+    else
+        error "Unable to determine if you're using an x86 or x64 MSVC toolset\n"
+        exit 1
+    fi
 else
-  platform_os="WINDOWS"
+    error "Either you don't have Visual Studio installed or it's not supported by this script.\nFound version '$VisualStudioVersion'\n"
+    exit 1
 fi
 
-# If you're using msys/mingw shell for compiling then it's possible for its gcc link.exe to take
-# precedence over the VC link.exe simply due to the path order. We get around this by prefixing all
-# VC tools with the active VC arch bin path
-msvc_bin="$VCINSTALLDIR"
-msvc_bin+="bin"
-msvc_set_to_x64=0
-if [[ $(env | grep "LIB" | grep "amd64") != "" ]]; then
-  msvc_set_to_x64=1
-  msvc_bin+="/amd64"
-fi
+
 # Fix up the path
 msvc_bin="/${msvc_bin/:/}" # remove :
 msvc_bin="${msvc_bin//\\//}" # remove windows slashes
@@ -92,8 +154,6 @@ msvc_bin="${msvc_bin// /\\ }" # add a backslash before spaces
 #---------------------------------------------------------------------------------------------------
 
 while [[ "$#" > 1 ]]; do case $1 in
-    -platform) platform="$2";;
-    -p)        platform="$2";;
     -arch)     arch="$2";;
     -a)        arch="$2";;
     -debug)    debug_mode="$2";;
@@ -111,23 +171,6 @@ while [[ "$#" > 1 ]]; do case $1 in
     *) break;;
   esac; shift; shift
 done
-
-# --------------------------------------------------------------------------------------------------
-# PLATFORM OPTIONS:
-#  * desktop
-#  * raspi (not supported yet)
-#  * web (not supported yet)
-# --------------------------------------------------------------------------------------------------
-if [[ $platform == "" ]]; then
-  platform=$default_platform
-fi
-
-if [[ $platform == "desktop" ]]; then
-  platform="PLATFORM_DESKTOP"
-else
-  error "Error: unsupported platform '$platform'\n"
-  exit 1
-fi
 
 # --------------------------------------------------------------------------------------------------
 # ARCHITECTURE OPTIONS:
@@ -228,7 +271,6 @@ fi
 # --------------------------------------------------------------------------------------------------
 if [[ ! $verbose -eq 0 ]]; then
   log " Platform OS = " $platform_os
-  log "    Platform = " $platform
   log "        Arch = " $arch
   log "  Debug Mode = " $debug_mode
   log "    Dev Mode = " $dev_mode
@@ -242,12 +284,12 @@ fi
 # VALIDATE OPTIONS
 # --------------------------------------------------------------------------------------------------
 
-if [[ $arch == "x64" && $msvc_set_to_x64 -eq 0 ]]; then
-  error "Error: you can't build a 64-bit app using the x86 MSVC toolset!\n"
-  exit 1
-elif [[ $arch == "x86" && $msvc_set_to_x64 -eq 1 ]]; then
-  error "Error: you can't build a 32-bit app using the x64 MSVC toolset!\n"
-  exit 1
+if [[ $arch == "x64" && $using_msvc_x64_toolset -eq 0 ]]; then
+    error "Error: you can't build a 64-bit exe using the x86 MSVC toolset!\n"
+    exit 1
+elif [[ $arch == "x86" && $using_msvc_x64_toolset -eq 1 ]]; then
+    error "Error: you can't build a 32-bit exe using the x64 MSVC toolset!\n"
+    exit 1
 fi
 
 if [[ $debug_mode -eq 0 ]]; then
@@ -268,7 +310,7 @@ warning_level="-W4"
   # -wd4055 'type cast': from data pointer 'void *' to function pointer
 compiler_warnings="-wd4090"
 
-compiler_env="$compiler_env -D$platform -D$graphics -DSUPPORT_LOGPRINT_DEBUG=$debug_mode -DMC_INTERNAL=$dev_mode -DMC_SLOW=$debug_mode"
+compiler_env="$compiler_env -D$graphics -DSUPPORT_LOGPRINT_DEBUG=$debug_mode -DMC_INTERNAL=$dev_mode -DMC_SLOW=$debug_mode"
 if [[ $platform_os == "WINDOWS" ]]; then
   # The engine header (raylib.h) checks for _WIN32, which is set by cl.exe for an x86/x64 target,
   # however I don't want to rely on that so I'm forcing it.
