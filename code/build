@@ -60,18 +60,26 @@ default_force_data_copy=1
 
 #---------------------------------------------------------------------------------------------------
 
+cwd=$PWD
+
 source "$JELLYPIXEL_SCRIPTING/platform.sh"   # Gives us $platform, $platform_os
 source "$JELLYPIXEL_SCRIPTING/printing.sh"
+source "$JELLYPIXEL_SCRIPTING/msvc.sh"
 
 os_is_windows is_windows
 shell_is_mingw mingw_shell
 
-if [[ $mingw_shell -eq 0 ]]; then
-    error "Error: the ${platform} platform is not supported!\n"
+if [[ $is_windows -eq 0 ]]; then
+    error "Error: this is only compatible on Windows.\n"
     exit 1
 fi
 
-cwd=$PWD
+if [[ $mingw_shell -eq 0 ]]; then
+    error "Error: expected this to run in a MINGW shell, but found $platform instead.\n"
+    exit 1
+fi
+
+get_msvc_bin_path msvc_bin using_msvc_x64_toolset
 
 code_dir="$cwd"
 if [[ -d "$cwd/run_tree" ]]; then
@@ -79,75 +87,6 @@ if [[ -d "$cwd/run_tree" ]]; then
     cd $code_dir
     cwd=$PWD
 fi
-
-# If you're using msys/mingw shell for compiling then it's possible for its gcc
-# link.exe to take precedence over the VC link.exe simply due to the path
-# order. We get around this by prefixing all VC tools with the active VC arch
-# bin path.
-
-using_msvc_x64_toolset=0
-
-if [[ $VisualStudioVersion == "14.0" ]]; then
-    ##########################################
-    # Visual Studio 2015
-    ##########################################
-    msvc_bin="$VCINSTALLDIR"
-
-    if [[ $(env | grep "LIB=" | grep "x64") != "" ]]; then
-        printf "${BOLD}${YELLOW}[VS2015 X64]${NORMAL}\n"
-        using_msvc_x64_toolset=1
-        msvc_bin+="bin/amd64"
-    elif [[ $(env | grep "LIB=" | grep "x86") != "" ]]; then
-        printf "${BOLD}${YELLOW}[VS2015 X86]${NORMAL}\n"
-        msvc_bin+="bin/"
-    else
-        error "Unable to determine if you're using an x86 or x64 MSVC toolset\n"
-        exit 1
-    fi
-elif [[ $VisualStudioVersion == "15.0" ]]; then
-    ##########################################
-    # Visual Studio 2017
-    ##########################################
-    msvc_bin="$VCToolsInstallDir"
-
-    if [[ $VSCMD_ARG_HOST_ARCH == "x64" ]]; then
-        printf "${BOLD}${YELLOW}[VS2017 X64]${NORMAL}\n"
-        using_msvc_x64_toolset=1
-        msvc_bin+="bin/Hostx64/x64"
-    elif [[ $VSCMD_ARG_HOST_ARCH == "x86" ]]; then
-        printf "${BOLD}${YELLOW}[VS2017 X86]${NORMAL}\n"
-        msvc_bin+="bin/Hostx86/x86"
-    else
-        error "Unable to determine if you're using an x86 or x64 MSVC toolset\n"
-        exit 1
-    fi
-elif [[ $VisualStudioVersion == "16.0" ]]; then
-    ##########################################
-    # Visual Studio 2019
-    ##########################################
-    msvc_bin="$VCToolsInstallDir"
-
-    if [[ $VSCMD_ARG_HOST_ARCH == "x64" ]]; then
-        printf "${BOLD}${YELLOW}[VS2019 X64]${NORMAL}\n"
-        using_msvc_x64_toolset=1
-        msvc_bin+="bin/Hostx64/x64"
-    elif [[ $VSCMD_ARG_HOST_ARCH == "x86" ]]; then
-        printf "${BOLD}${YELLOW}[VS2019 X86]${NORMAL}\n"
-        msvc_bin+="bin/Hostx86/x86"
-    else
-        error "Unable to determine if you're using an x86 or x64 MSVC toolset\n"
-        exit 1
-    fi
-else
-    error "Either you don't have Visual Studio installed or it's not supported by this script.\nFound version '$VisualStudioVersion'\n"
-    exit 1
-fi
-
-
-# Fix up the path
-msvc_bin="/${msvc_bin/:/}" # remove :
-msvc_bin="${msvc_bin//\\//}" # remove windows slashes
-msvc_bin="${msvc_bin// /\\ }" # add a backslash before spaces
 
 #---------------------------------------------------------------------------------------------------
 # COLLECT COMMAND LINE ARGS
